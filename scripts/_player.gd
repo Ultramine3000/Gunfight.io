@@ -71,6 +71,7 @@ var speed := 0.0
 var sprinting := false
 var stamina := 0
 var stamina_drained = false
+var animation_inputs: Dictionary[String, bool]
 
 
 ## JUMPING ##
@@ -150,6 +151,16 @@ func _ready() -> void:
 		side_weapon.current_ammo = side_weapon.max_ammo
 	switch_weapon(true)
 	
+	# Initialise animation inputs
+	animation_inputs = {
+		"walk_fw": false,
+		"walk_bk": false,
+		"walk_lf": false,
+		"walk_rt": false,
+		"sprint": false,
+		"jump": false,
+	}
+	
 	# Misc.
 	health = max_health
 	hud.health_bar.max_value = max_health
@@ -207,15 +218,19 @@ func _camera_process(delta):
 	if ads_mode:
 		sensitivity *= ads_sensitivity_multiplier
 
-	# Capture mouse or stick input
+	# Get controller input
+	var controller_input = Vector2(
+		-Input.get_axis("p"+str(ctrl_port)+"_cam_lf", "p"+str(ctrl_port)+"_cam_rt"),  # Inverted X for proper stick direction
+		Input.get_axis("p"+str(ctrl_port)+"_cam_dn", "p"+str(ctrl_port)+"_cam_up")
+	)
+
+	# Combine mouse and controller input for Player 1
 	if ctrl_port == 0:
 		var mouse_motion = Input.get_last_mouse_velocity()
-		target_look_input = Vector2(-mouse_motion.x, -mouse_motion.y) * sensitivity * 0.001
+		var mouse_input = Vector2(-mouse_motion.x, -mouse_motion.y) * sensitivity * 0.001
+		target_look_input = mouse_input + controller_input * sensitivity
 	else:
-		target_look_input = Vector2(
-			Input.get_axis("p"+str(ctrl_port)+"_cam_lf", "p"+str(ctrl_port)+"_cam_rt"),
-			Input.get_axis("p"+str(ctrl_port)+"_cam_dn", "p"+str(ctrl_port)+"_cam_up")
-		) * sensitivity
+		target_look_input = controller_input * sensitivity
 
 	# Smooth the input to prevent clunky jumpiness
 	look_input = lerp(look_input, target_look_input, clamp(look_smoothness * delta, 0.0, 1.0))
@@ -230,6 +245,7 @@ func _camera_process(delta):
 
 	# Clamp vertical look
 	camera.rotation.x = clamp(camera.rotation.x, deg_to_rad(-40), deg_to_rad(60))
+
 
 
 
@@ -416,27 +432,28 @@ func _anim_body_process(player_id):
 			weapon_prefix = "Rifle"
 
 	# Map player inputs to animations
-	var inputs = {
-		"walk_fw": Input.is_action_pressed("p%d_walk_fw" % player_id),
-		"walk_bk": Input.is_action_pressed("p%d_walk_bk" % player_id),
-		"walk_lf": Input.is_action_pressed("p%d_walk_lf" % player_id),
-		"walk_rt": Input.is_action_pressed("p%d_walk_rt" % player_id),
-		"sprint": Input.is_action_pressed("p%d_sprint" % player_id),
-		"jump": Input.is_action_pressed("p%d_jump" % player_id)
-	}
+	if is_multiplayer_authority():
+		animation_inputs = {
+			"walk_fw": Input.is_action_pressed("p%d_walk_fw" % player_id),
+			"walk_bk": Input.is_action_pressed("p%d_walk_bk" % player_id),
+			"walk_lf": Input.is_action_pressed("p%d_walk_lf" % player_id),
+			"walk_rt": Input.is_action_pressed("p%d_walk_rt" % player_id),
+			"sprint": Input.is_action_pressed("p%d_sprint" % player_id),
+			"jump": Input.is_action_pressed("p%d_jump" % player_id)
+		}
 
 	# Handle jump
-	if inputs["jump"] and not is_on_floor():
+	if animation_inputs["jump"] and not is_on_floor():
 		anim_to_play = "Jump"
 	else:
 		# Movement logic
-		if inputs["walk_fw"]:
-			anim_to_play = "Sprint" if inputs["sprint"] else "MoveForward"
-		elif inputs["walk_bk"]:
+		if animation_inputs["walk_fw"]:
+			anim_to_play = "Sprint" if animation_inputs["sprint"] else "MoveForward"
+		elif animation_inputs["walk_bk"]:
 			anim_to_play = "MoveBack"
-		elif inputs["walk_lf"]:
+		elif animation_inputs["walk_lf"]:
 			anim_to_play = "MoveLeft"
-		elif inputs["walk_rt"]:
+		elif animation_inputs["walk_rt"]:
 			anim_to_play = "MoveRight"
 		else:
 			anim_to_play = "Idle"
@@ -680,16 +697,22 @@ func melee():
 
 @rpc("any_peer", "call_local", "reliable")
 func take_damage(damage: int, type: String, enemy_source_path: NodePath, hit_position: Vector3):
-	if health <= 0:
+	if health <= 0 and damage <= 0:
 		return  # Prevent taking further damage if already dead
 	
-	var enemy_source := get_node(enemy_source_path)
-	if enemy_source.get_multiplayer_authority() != multiplayer.get_remote_sender_id():
+	var enemy_source := get_node_or_null(enemy_source_path)
+	if enemy_source == null:
 		return
+
+	if enemy_source and enemy_source.has_method("get_multiplayer_authority"):
+		if enemy_source.get_multiplayer_authority() != multiplayer.get_remote_sender_id():
+			return
+
 
 	health -= damage
 	hud.hp_target = health
 	hud.flash_damage_indicator()
+	sync_health.rpc(health)
 
 	# Play damage sound with modulation
 	if has_node("take_damage_sound"):
@@ -720,8 +743,6 @@ func take_damage(damage: int, type: String, enemy_source_path: NodePath, hit_pos
 			print("Body shot.")
 		"legs":
 			print("Leg shot.")
-
-
 
 func _camera_flinch():
 	# Define flinch strength
@@ -962,6 +983,13 @@ func look_at_object(delta):
 	))
 
 	skeleton.set_bone_pose_rotation(neck_bone, new_rotation)
+	
+
+@rpc("authority", "call_remote", "unreliable")
+func sync_health(value: int):
+	if not is_multiplayer_authority():
+		health = value
+		hud.hp_target = value
 	
 func _process(delta: float) -> void:
 	look_at_object(delta)

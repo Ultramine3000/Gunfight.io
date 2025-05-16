@@ -46,6 +46,7 @@ func init_lobby() -> void:
 func init_client() -> void:
 	multiplayer.connection_failed.connect(client_on_connection_failed)
 	multiplayer.server_disconnected.connect(client_on_server_disconnected)
+	multiplayer.peer_disconnected.connect(client_on_peer_disconnected)
 
 
 func host(port: int) -> Error:
@@ -90,6 +91,7 @@ func lobby_on_peer_disconnected(id: int) -> void:
 		get_tree().quit()
 		return
 	player_ids.erase(id)
+	Game.end_match()
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -112,7 +114,13 @@ func client_on_connection_failed() -> void:
 func client_on_server_disconnected() -> void:
 	player_ids.clear()
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	Game.end_match()
 	print("Server disconnected")
+
+
+func client_on_peer_disconnected(_id: int) -> void:
+	Game.end_match()
+	print("Peer disconnected")
 
 
 @rpc("authority", "call_remote", "reliable")

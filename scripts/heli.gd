@@ -57,6 +57,9 @@ var wiggle_timer = 0.0
 var turn_left_next = true  # Alternate strafes
 
 func _ready():
+	if multiplayer.has_multiplayer_peer():
+		set_multiplayer_authority(multiplayer.get_unique_id())
+
 	rotor_base_rot = mesh_rotor.rotation
 	tail_base_rot = mesh_tail.rotation
 	sleeping = false
@@ -67,6 +70,8 @@ func _ready():
 	center_of_mass = Vector3(0, -0.25, -2.0)
 
 func _physics_process(delta):
+	if not is_multiplayer_authority(): return
+
 	if spin_progress < 1.0:
 		spin_progress += delta / spin_up_time
 	else:
@@ -182,6 +187,7 @@ func _acquire_target():
 
 
 
+@rpc("authority", "call_local", "reliable")
 func _fire_burst():
 	if not turret or not current_target or not tracer_scene:
 		return
@@ -191,10 +197,6 @@ func _fire_burst():
 		get_parent().add_child(tracer)
 
 		var spawn_pos = turret.global_transform.origin
-
-		if current_target == null:
-			return
-
 		var target_pos = current_target.global_transform.origin
 
 		if randf() < miss_chance:

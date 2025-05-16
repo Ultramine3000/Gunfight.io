@@ -249,6 +249,7 @@ collision_layer = 255
 collision_mask = 255
 script = ExtResource("1_dc0ek")
 tracer_scene = ExtResource("2_qlqgx")
+tracer_speed = 250.0
 
 [node name="body" type="MeshInstance3D" parent="."]
 transform = Transform3D(-6, 9.05975e-07, -3.96014e-14, 0, -2.62268e-07, -6, -9.05975e-07, -6, 2.62268e-07, 0.0299404, 0, -0.486577)

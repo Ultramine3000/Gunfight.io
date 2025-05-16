@@ -50,16 +50,23 @@ func masterserver_on_peer_connected(id: int) -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func create_lobby_request() -> void:
+	# cleanup lobby list
+	var remove_keys: Array[int]
+	for pid in lobbies:
+		if not OS.is_process_running(pid):
+			remove_keys.append(pid)
+	for key in remove_keys:
+		lobbies.erase(key)
+	
 	# find available port
 	var port := Multiplayer.MASTERSERVER_PORT + 1
 	var port_available: bool
 	for i in MAX_LOBBY_COUNT:
 		var new_port := port + i
-		port_available = true
-		for pid in lobbies:
-			if lobbies[pid].port == new_port:
-				port_available = false
-				break
+		var port_tester := WebSocketMultiplayerPeer.new()
+		var error := port_tester.create_server(new_port)
+		port_tester.close()
+		port_available = error == OK
 		if port_available:
 			port = new_port
 			break

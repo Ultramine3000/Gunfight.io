@@ -26,6 +26,9 @@ func start_match(map:String, player_count:int, points_to_win:=10):
 	add_child(world)
 
 func end_match():
+	if not is_instance_valid(world):
+		return
+	
 	for player in player_roster:
 		player.queue_free()
 	player_roster = []

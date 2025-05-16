@@ -7,16 +7,15 @@ extends Node
 
 
 func _ready() -> void:
-	var port := Multiplayer.MASTERSERVER_PORT
-	for arg in OS.get_cmdline_args():
-		if arg.begins_with("--port="):
-			port = int(arg)
-	
 	if "--masterserver" in OS.get_cmdline_args():
-		Matchmaking.start_masterserver(port)
+		Matchmaking.start_masterserver(Multiplayer.MASTERSERVER_PORT)
 		return
 	
 	if "--server" in OS.get_cmdline_args():
+		var port := Multiplayer.MASTERSERVER_PORT
+		for arg in OS.get_cmdline_args():
+			if arg.begins_with("--port="):
+				port = int(arg)
 		Multiplayer.init_lobby()
 		Multiplayer.host(port)
 		Matchmaking.init_lobby()
