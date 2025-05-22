@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CombatUnitData" load_steps=3 format=3 uid="uid://dh2t8wsqf5tco"]
+
+[ext_resource type="Script" uid="uid://c1wddsm427l3n" path="res://core/scripts/CombatUnitData.gd" id="1_2g277"]
+[ext_resource type="Texture2D" uid="uid://b8y4mg8rb8ymf" path="res://data/assets/icons/Infantry.png" id="2_t00kb"]
+
+[resource]
+script = ExtResource("1_2g277")
+unit_icon = ExtResource("2_t00kb")
+unit_name = "Riflemen"
+health = 10
+move_speed = 5.0
+cost = 20
+weapon_type = "Rifle"
+abilities = Array[String]([])

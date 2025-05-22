@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://53ikbm0hxshl"]
+
+[ext_resource type="Script" uid="uid://camaeyadjsldv" path="res://core/scripts/SelectionManager.gd" id="1_d5hhi"]
+
+[node name="SelectionManager" type="Node3D"]
+script = ExtResource("1_d5hhi")
