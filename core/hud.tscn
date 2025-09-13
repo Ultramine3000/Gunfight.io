@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3 uid="uid://ucqk0dfof7w1"]
+[gd_scene load_steps=17 format=3 uid="uid://ucqk0dfof7w1"]
 
 [ext_resource type="Texture2D" uid="uid://dvv4253o8mga7" path="res://assets/textures/ui/crosshair.png" id="1_5j50p"]
 [ext_resource type="Script" uid="uid://cx2waf81771er" path="res://scripts/_hud.gd" id="1_wp0j3"]
@@ -8,6 +8,7 @@
 [ext_resource type="Texture2D" uid="uid://dcw54ph03stcp" path="res://assets/textures/ui/defeat.png" id="6_eclha"]
 [ext_resource type="AudioStream" uid="uid://p13voft6ohx5" path="res://assets/sfx/ui/have_mercy.mp3" id="7_eclha"]
 [ext_resource type="Texture2D" uid="uid://ggsmtdl0lfq1" path="res://assets/textures/ui/vignette.png" id="8_vjwwo"]
+[ext_resource type="Texture2D" uid="uid://depoaeh78y2lw" path="res://assets/rigs/kar98_arms/scope.png" id="9_d1q6q"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bw7k3"]
 bg_color = Color(0, 0, 0, 0)
@@ -69,6 +70,12 @@ expand_margin_top = 16.0
 expand_margin_right = 16.0
 expand_margin_bottom = 16.0
 
+[sub_resource type="Gradient" id="Gradient_wwirt"]
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_f4txf"]
+gradient = SubResource("Gradient_wwirt")
+fill_to = Vector2(0, 0)
+
 [node name="hud" type="Control"]
 layout_mode = 3
 anchors_preset = 15
@@ -84,11 +91,12 @@ metadata/_edit_use_anchors_ = true
 
 [node name="border" type="Panel" parent="."]
 layout_mode = 0
-offset_right = 1919.0
-offset_bottom = 553.0
+offset_right = 1600.0
+offset_bottom = 450.0
 theme_override_styles/panel = SubResource("StyleBoxFlat_bw7k3")
 
 [node name="reticle" type="TextureRect" parent="."]
+visible = false
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 0
 offset_left = 784.0
@@ -238,3 +246,20 @@ offset_top = -17.0
 offset_right = 289.0
 offset_bottom = 6.0
 text = "Look Sensitivity"
+
+[node name="scope" type="Sprite2D" parent="."]
+visible = false
+z_index = -2
+position = Vector2(799.167, 226.667)
+scale = Vector2(0.435357, 0.416281)
+texture = ExtResource("9_d1q6q")
+
+[node name="border" type="Sprite2D" parent="scope"]
+position = Vector2(1274.53, 4.57764e-05)
+scale = Vector2(17.7746, 16.8281)
+texture = SubResource("GradientTexture2D_f4txf")
+
+[node name="border2" type="Sprite2D" parent="scope"]
+position = Vector2(-1377.24, -4.50413)
+scale = Vector2(14.3852, 17.0314)
+texture = SubResource("GradientTexture2D_f4txf")
