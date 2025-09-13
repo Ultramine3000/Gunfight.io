@@ -19,6 +19,14 @@ class_name Player
 @onready var draw_sound := $draw_sound
 @onready var holster_sound := $holster_sound
 
+## ADS (AIM DOWN SIGHTS) ##
+@export_category("ADS")
+@export_range(0.1, 2.0) var ads_zoom_factor := 0.4  # Lower values = more zoom
+@export_range(1.0, 10.0) var ads_transition_speed := 5.0
+var is_aiming := false
+var default_fov : float
+var target_fov : float
+
 ## RECOIL ##
 var recoil_strength := Vector2(0.35, 0.15)  # (Vertical, Horizontal) recoil amount
 var recoil_recovery_speed := 20.0         # Speed of recoil reset
@@ -38,41 +46,20 @@ var view_layer : int
 ## CAMERA ##
 @export_category("Camera")
 @export_range(0.0, 16.0) var camera_sensitivity := 0.0
-@export_range(0.0, 1.0) var ads_sensitivity_multiplier := 0.35  # Adjust ADS sensitivity
 
 var look_input := Vector2.ZERO
 var target_look_input := Vector2.ZERO
 @export_range(0.0, 20.0) var look_smoothness := 10.0
 
-
-## ADS ##
-@export_category("ADS")
-@export_range(0.0, 150.0) var ads_fov_min := 45.0
-@export_range(0.0, 150.0) var ads_fov_max := 75.0
-@export_range(0.0, 1.0) var ads_fov_rate
-
-const ADS_FOV_MARGIN := 0.1
-var ads_mode := false
-var ads_fov_target : float
-
 ## MOVEMENT ##
 @export_category("Movement")
 @export_range(0.0, 100.0) var max_walk_speed := 0.0
-@export_range(0.0, 100.0) var max_sprint_speed := 0.0
-@export_range(0.0, 100.0) var max_ads_speed := 0.0
 @export_range(0.0, 20.0) var accel := 0.0
 @export_range(0.0, 20.0) var decel := 0.0
-@export_range(0, 1000) var max_stamina := 0
-@export_range(0, 100) var stamina_regen_rate := 0
-@export_range(0, 100) var stamina_drain_rate := 0
 const GRAVITY_COLLIDE := -0.1
 var direction : Vector3
 var speed := 0.0
-var sprinting := false
-var stamina := 0
-var stamina_drained = false
 var animation_inputs: Dictionary[String, bool]
-
 
 ## JUMPING ##
 @export_category("Jumping")
@@ -82,11 +69,13 @@ var jump_queued := false
 ## SHOOTING ##
 @export_category("Shooting")
 var shoot_cooldown := 0.0
-
 @export var tracer_scene: PackedScene  # Assign the Tracer.tscn in the inspector
 
 ## RELOAD ##
 var reloading: bool = false  # Tracks whether the player is reloading
+
+## INSPECT ##
+var inspecting: bool = false  # Tracks whether the player is inspecting weapon
 
 ## STATS ##
 @export_category("Stats")
@@ -103,24 +92,24 @@ var ammo := {}
 @export var ammo_default_multiplier := 2     # Determines how much extra ammo the player starts with for each gun
 										# Multiplies by the max ammo in each gun
 
+## WEAPON SWITCHING ##
+var weapon_switching := false
+var switch_cooldown := 0.0
+@export var switch_cooldown_time := 0.5  # Minimum time between weapon switches
+
 ## MISC ##
 var enemy_that_killed : Player
 var reload_time_remaining := 0.0
 
 # Define custom blend times for transitions
 var animation_blends = {
-	"idle": 1.0,
-	"ads": 0.0,
-	"sprint": 0.0,
-	"idle_to_ads": 0.0,
-	"ads_to_idle": 0.0,
-	"idle_to_sprint": 0.0,
-	"sprint_to_idle": 0.0,
-	"ads_to_sprint": 0.0,
-	"sprint_to_ads": 0.0,
+	"idle": 0.0,
+	"fire_idle": 0.0,
 	"reload": 0.0,
+	"draw": 0.0,
+	"holster": 0.0,
+	"inspect": 0.0,
 }
-
 
 func _ready() -> void:
 	if multiplayer.multiplayer_peer is not OfflineMultiplayerPeer:
@@ -128,7 +117,7 @@ func _ready() -> void:
 	
 	view_layer = ctrl_port + 2
 	
-		# Set player name in HUD
+	# Set player name in HUD
 	var player_name = "Player " + str(ctrl_port + 1)  # "Player 1" for ctrl_port 0, "Player 2" for ctrl_port 1
 	if hud.has_node("player_label"):
 		hud.get_node("player_label").text = player_name
@@ -138,6 +127,10 @@ func _ready() -> void:
 	camera.set_cull_mask_value(view_layer, true)
 	_set_arm_vis_recursive(arms_rig)
 	_set_body_vis_recursive(body_rig)
+	
+	# Initialize ADS FOV values
+	default_fov = camera.fov
+	target_fov = default_fov
 	
 	if has_node("muzzle_flash"):
 		_set_body_vis_recursive(get_node("muzzle_flash"))
@@ -157,7 +150,6 @@ func _ready() -> void:
 		"walk_bk": false,
 		"walk_lf": false,
 		"walk_rt": false,
-		"sprint": false,
 		"jump": false,
 	}
 	
@@ -166,7 +158,6 @@ func _ready() -> void:
 	hud.health_bar.max_value = max_health
 	hud.health_bar.value = health
 	hud.update_score()
-	ads_fov_target = 0.0 + camera.fov
 	body_anim_oneshot.animation_finished.connect(_on_death_anim_done.bind(1))
 	
 	if ctrl_port == 0:
@@ -177,17 +168,16 @@ func _physics_process(delta: float) -> void:
 		_control_process()
 		_camera_process(delta)
 		_movement_process(delta)
-		_sprint_process(delta)
+		_ads_process(delta)  # Handle ADS zoom
 	
-	_ads_process(delta)
 	_anim_arms_process()
 	_anim_body_process(ctrl_port)
 	
 	if shoot_cooldown > 0.0: shoot_cooldown -= delta
 	if reload_time_remaining > 0.0: reload_time_remaining -= delta
+	if switch_cooldown > 0.0: switch_cooldown -= delta  # Handle weapon switch cooldown
 	
 	_handle_walk_sound()  # Call the walk sound handler
-
 
 func _control_process():
 	if health <= 0: return
@@ -196,27 +186,58 @@ func _control_process():
 	if Input.is_action_just_pressed("p"+str(ctrl_port)+"_jump"):
 		jump()
 	
-	if Input.is_action_just_pressed("p"+str(ctrl_port)+"_ads"):
-		set_ads.rpc(true)
-	if Input.is_action_just_released("p"+str(ctrl_port)+"_ads"):
-		set_ads.rpc(false)
-	
 	if Input.is_action_just_pressed("p"+str(ctrl_port)+"_switch_weapon"):
-		switch_weapon.rpc()
+		if not weapon_switching and switch_cooldown <= 0.0:  # Prevent rapid switching
+			switch_weapon.rpc()
+	
+	if Input.is_action_just_pressed("p"+str(ctrl_port)+"_inspect"):
+		inspect_weapon.rpc()
 	
 	if Input.is_action_pressed("p"+str(ctrl_port)+"_shoot"):
 		shoot.rpc()
 	
 	if Input.is_action_just_pressed("p"+str(ctrl_port)+"_reload"):
 		reload.rpc()
+	
+	# Handle ADS input
+	if Input.is_action_pressed("p"+str(ctrl_port)+"_ads"):
+		if not is_aiming and not weapon_switching:  # Don't allow ADS during weapon switch
+			start_ads()
+	else:
+		if is_aiming:
+			stop_ads()
+
+func _ads_process(delta: float):
+	# Smoothly transition FOV for zoom effect
+	camera.fov = lerp(camera.fov, target_fov, ads_transition_speed * delta)
+
+func start_ads():
+	if reloading or inspecting or dead or weapon_switching:
+		return
+	
+	is_aiming = true
+	target_fov = default_fov * ads_zoom_factor  # Zoom in
+	
+	# Move weapon armature to ADS position
+	if current_arm_rig and current_arm_rig.has_node("LVA4_Armature"):
+		current_arm_rig.get_node("LVA4_Armature").set_p0_ads(true)
+
+func stop_ads():
+	is_aiming = false
+	target_fov = default_fov  # Zoom out to normal
+	
+	# Move weapon armature back to normal position
+	if current_arm_rig and current_arm_rig.has_node("LVA4_Armature"):
+		current_arm_rig.get_node("LVA4_Armature").set_p0_ads(false)
 
 func _camera_process(delta):
 	if health <= 0:
 		return
 
+	# Adjust sensitivity based on ADS state
 	var sensitivity = camera_sensitivity
-	if ads_mode:
-		sensitivity *= ads_sensitivity_multiplier
+	if is_aiming:
+		sensitivity *= 0.5  # Reduce sensitivity while aiming for better precision
 
 	# Get controller input
 	var controller_input = Vector2(
@@ -246,21 +267,6 @@ func _camera_process(delta):
 	# Clamp vertical look
 	camera.rotation.x = clamp(camera.rotation.x, deg_to_rad(-40), deg_to_rad(60))
 
-
-
-
-
-func _ads_process(delta):
-	# Adjust FOV to match current ADS mode.
-	var current_fov = camera.fov
-	if (
-			current_fov < ads_fov_target - ADS_FOV_MARGIN) or (
-			current_fov > ads_fov_target + ADS_FOV_MARGIN):
-		current_fov = lerp(current_fov, ads_fov_target, ads_fov_rate)
-	else:
-		current_fov = ads_fov_target
-	camera.fov = current_fov
-
 func _movement_process(delta):
 	var input_dir = Input.get_vector(
 		"p"+str(ctrl_port)+"_walk_lf", "p"+str(ctrl_port)+"_walk_rt",
@@ -284,8 +290,10 @@ func _movement_process(delta):
 		direction = direction.normalized()
 
 	var true_max_speed = max_walk_speed
-	if sprinting: true_max_speed = max_sprint_speed
-	if ads_mode: true_max_speed = max_ads_speed
+	
+	# Reduce movement speed while aiming
+	if is_aiming:
+		true_max_speed *= 0.6  # 60% speed while aiming
 
 	if input_dir != Vector2.ZERO:
 		speed = move_toward(speed, true_max_speed, accel * delta)
@@ -308,104 +316,21 @@ func _movement_process(delta):
 
 	move_and_slide()
 
-
-func _sprint_process(delta):
-	# Detect button press.
-	sprinting = false
-	if Input.is_action_pressed("p"+str(ctrl_port)+"_sprint") and not ads_mode:
-		if stamina > 0 and not stamina_drained: sprinting = true
-	
-	# Determine if drained.
-	if stamina <= 0: stamina_drained = true
-	if stamina >= max_stamina: stamina_drained = false
-	
-	# Spend and regain stamina.
-	if sprinting and stamina > 0: stamina -= stamina_drain_rate
-	if not sprinting and stamina < max_stamina: stamina += stamina_regen_rate
-	stamina = clamp(stamina, 0, max_stamina)
-
 func _anim_arms_process():
 	var continue_player: AnimationPlayer = current_arm_rig.get_node("anim_continue")
 
 	var anim_to_play := "idle"
-	var custom_blend := 0.1
 	var custom_speed := 1.0
-	var from_end := false
 
-	# Custom animation speeds
-	var animation_speeds = {
-		"idle": 1.0,
-		"ads": 1.0,
-		"sprint": 1.0, 
-		"idle_to_ads": 1.6,
-		"ads_to_idle": 1.6,
-		"idle_to_sprint": 1.6,
-		"sprint_to_idle": 1.6
-	}
+	# Use idle animation regardless of ADS state
+	anim_to_play = "idle"
 
-	# Prevent interrupting transition animations
-	if continue_player.is_playing() and continue_player.current_animation in [
-		"idle_to_ads", "ads_to_idle", "idle_to_sprint", "sprint_to_idle"
-	]:
-		return  
+	# Get custom blend from animation_blends dictionary
+	var custom_blend = animation_blends.get(anim_to_play, 0.1)
 
-	# **Sprint to ADS → Go directly to ADS**
-	if sprinting and ads_mode:
-		anim_to_play = "ads"
-
-	# **ADS to Sprint → Go directly to Sprint**
-	elif ads_mode and sprinting:
-		anim_to_play = "sprint"
-
-	# **Idle to Sprint (idle_to_sprint → sprint)**
-	elif sprinting and continue_player.current_animation not in ["sprint", "idle_to_sprint"]:
-		continue_player.play("idle_to_sprint", 0.1, animation_speeds.get("idle_to_sprint", 1.5))
-		await continue_player.animation_finished
-		anim_to_play = "sprint"
-
-	# **Sprint to Idle (sprint_to_idle → idle)**
-	elif not sprinting and continue_player.current_animation == "sprint":
-		continue_player.play("sprint_to_idle", 0.1, animation_speeds.get("sprint_to_idle", 1.5))
-		await continue_player.animation_finished
-		anim_to_play = "idle"
-
-	# **ADS Handling**
-	elif ads_mode:
-		if continue_player.current_animation in ["idle"]:
-			anim_to_play = "idle_to_ads"
-		else:
-			anim_to_play = "ads"
-
-	# **Sprint Handling**
-	elif sprinting:
-		anim_to_play = "sprint"
-
-	# **Movement Handling**
-	elif speed > 0.0:
-		if continue_player.current_animation == "ads":
-			anim_to_play = "ads_to_idle"
-		elif continue_player.current_animation == "sprint":
-			anim_to_play = "sprint_to_idle"
-		else:
-			anim_to_play = "idle"
-
-	# **Idle Handling**
-	else:
-		if continue_player.current_animation == "ads":
-			anim_to_play = "ads_to_idle"
-		elif continue_player.current_animation == "sprint":
-			anim_to_play = "sprint_to_idle"
-		else:
-			anim_to_play = "idle"
-
-	# Assign custom speed and blend time
-	if anim_to_play in animation_speeds:
-		custom_speed = animation_speeds[anim_to_play]
-
-	# Play animation only if it's not already playing
+	# Play animation only if it's different from the current one
 	if continue_player.current_animation != anim_to_play:
-		continue_player.play(anim_to_play, custom_blend, custom_speed, from_end)
-
+		continue_player.play(anim_to_play, custom_blend, custom_speed)
 
 func _anim_body_process(player_id):
 	var continue_player: AnimationPlayer = body_rig.get_node("anim_continue")
@@ -413,14 +338,13 @@ func _anim_body_process(player_id):
 	var anim_to_play := "Idle"  # Default animation
 	var custom_blend := 0.2
 	var custom_speed := 1.0
-	var from_end := false
 
 	# Animation speed settings
 	var animation_speeds = {
 		"PistolIdle": 1.0, "PistolMoveForward": 0.85, "PistolMoveLeft": 1.0, "PistolMoveRight": 1.0,
-		"PistolMoveBack": 0.85, "PistolSprint": 1.2, "PistolJump": 1.0,
+		"PistolMoveBack": 0.85, "PistolJump": 1.0,
 		"RifleIdle": 1.0, "RifleMoveForward": 0.9, "RifleMoveLeft": 1.45, "RifleMoveRight": 1.45,
-		"RifleMoveBack": 0.9, "RifleSprint": 1.3, "RifleJump": 1.0
+		"RifleMoveBack": 0.9, "RifleJump": 1.0
 	}
 
 	# Determine the correct weapon prefix
@@ -438,7 +362,6 @@ func _anim_body_process(player_id):
 			"walk_bk": Input.is_action_pressed("p%d_walk_bk" % player_id),
 			"walk_lf": Input.is_action_pressed("p%d_walk_lf" % player_id),
 			"walk_rt": Input.is_action_pressed("p%d_walk_rt" % player_id),
-			"sprint": Input.is_action_pressed("p%d_sprint" % player_id),
 			"jump": Input.is_action_pressed("p%d_jump" % player_id)
 		}
 
@@ -446,9 +369,9 @@ func _anim_body_process(player_id):
 	if animation_inputs["jump"] and not is_on_floor():
 		anim_to_play = "Jump"
 	else:
-		# Movement logic
+		# Movement logic (no sprint)
 		if animation_inputs["walk_fw"]:
-			anim_to_play = "Sprint" if animation_inputs["sprint"] else "MoveForward"
+			anim_to_play = "MoveForward"
 		elif animation_inputs["walk_bk"]:
 			anim_to_play = "MoveBack"
 		elif animation_inputs["walk_lf"]:
@@ -466,58 +389,77 @@ func _anim_body_process(player_id):
 
 	# Play the animation if it's different from the current one
 	if continue_player.current_animation != anim_to_play:
-		continue_player.play(anim_to_play, custom_blend, custom_speed, from_end)
+		continue_player.play(anim_to_play, custom_blend, custom_speed)
 
 func jump():
 	if not is_on_floor():
 		return
 	jump_queued = true
 
-
 @rpc("authority", "call_local", "reliable")
 func switch_weapon(update_only: bool = false) -> void:
+	# Don't allow weapon switching if already switching, inspecting, or on cooldown
+	if weapon_switching or inspecting or switch_cooldown > 0.0:
+		return
+	
+	# Set switching state to prevent other actions
+	weapon_switching = true
+	switch_cooldown = switch_cooldown_time
+		
+	# Stop ADS when switching weapons
+	if is_aiming:
+		stop_ads()
+		
 	if not update_only:
 		# Play holster sound from the current weapon, if the node and sound are valid.
-		if holster_sound and current_weapon.holster_sound:
+		if holster_sound and current_weapon and current_weapon.holster_sound:
 			holster_sound.stream = current_weapon.holster_sound
 			holster_sound.play()
 		
 		# Play holster animation on the current weapon.
-		var arms_anim: AnimationPlayer = current_arm_rig.get_node("anim_oneshot")
-		arms_anim.play("holster", animation_blends.get("holster", 0.1), 1.0)
-		await arms_anim.animation_finished
+		if current_arm_rig:
+			var arms_anim: AnimationPlayer = current_arm_rig.get_node("anim_oneshot")
+			arms_anim.play("holster", animation_blends.get("holster", 0.1), 1.0)
+			await arms_anim.animation_finished
 		
 		# Swap the weapons.
 		var hold = current_weapon
 		current_weapon = side_weapon
 		side_weapon = hold
 	
+	# Safety check - ensure we have a current weapon
+	if not current_weapon:
+		weapon_switching = false
+		return
+	
 	# Update weapon sounds for fire and reload.
-	if current_weapon:
-		if current_weapon.fire_sound:
-			shoot_sound.stream = current_weapon.fire_sound
-		if current_weapon.reload_sound:
-			reload_sound.stream = current_weapon.reload_sound
+	if current_weapon.fire_sound:
+		shoot_sound.stream = current_weapon.fire_sound
+	if current_weapon.reload_sound:
+		reload_sound.stream = current_weapon.reload_sound
 	
 	# Hide all weapon rigs first.
 	for rig in arms_rig.get_children():
 		rig.hide()
-		# Do not show the new weapon's rig just yet.
-		if rig.name == current_weapon.name:
-			pass
 	for mesh in get_tree().get_nodes_in_group("body_weapon_mesh"):
 		if mesh.owner != self:
 			continue
 		mesh.hide()
-		if mesh.name == current_weapon.name:
-			pass
+	
+	# Safety check - ensure the weapon rig exists
+	if not arms_rig.has_node(current_weapon.name):
+		print("Error: Weapon rig not found for ", current_weapon.name)
+		weapon_switching = false
+		return
 	
 	# Set the new weapon's animation rig.
 	current_arm_rig = arms_rig.get_node(current_weapon.name)
 	
 	# Fully reset the new rig's animations.
-	current_arm_rig.get_node("anim_continue").stop()
+	var continue_anim: AnimationPlayer = current_arm_rig.get_node("anim_continue")
 	var oneshot_anim: AnimationPlayer = current_arm_rig.get_node("anim_oneshot")
+	
+	continue_anim.stop()
 	oneshot_anim.stop()
 	oneshot_anim.seek(0, true)
 	
@@ -532,6 +474,15 @@ func switch_weapon(update_only: bool = false) -> void:
 		if mesh.owner == self and mesh.name == current_weapon.name:
 			mesh.show()
 	
+	# Initialize weapon armature position for new weapon
+	if current_arm_rig.has_node("LVA4_Armature"):
+		var armature = current_arm_rig.get_node("LVA4_Armature")
+		armature.player_ctrl_port = ctrl_port  # Set the correct controller port
+		if is_aiming:
+			armature.set_p0_ads(true)  # If already aiming, move to ADS position
+		else:
+			armature.set_p0_ads(false)  # Otherwise normal position
+	
 	# Play the draw sound from the new weapon, if valid.
 	if draw_sound and current_weapon.draw_sound:
 		draw_sound.stream = current_weapon.draw_sound
@@ -541,13 +492,42 @@ func switch_weapon(update_only: bool = false) -> void:
 	oneshot_anim.play("draw", 0.0, 1.0)
 	await oneshot_anim.animation_finished
 	
-	# Update miscellaneous settings.
+	# Reset all states and cooldowns
 	shoot_cooldown = 0.0
+	reload_time_remaining = 0.0
+	reloading = false
+	inspecting = false
+	weapon_switching = false  # Allow switching again
+	
+	# Update HUD
 	hud.update_ammo()
 
+@rpc("authority", "call_local", "reliable")
+func inspect_weapon():
+	# Don't allow inspect while reloading, shooting, already inspecting, aiming, or weapon switching
+	if reloading or inspecting or shoot_cooldown > 0.0 or is_aiming or weapon_switching:
+		return
+	
+	inspecting = true
+	
+	# Play inspect animation
+	play_oneshot_anim_arms("inspect")
+	
+	# Play third-person inspect animation
+	match current_weapon.weapon_type:
+		Weapon.WEAPON_TYPES.PISTOL:
+			play_oneshot_anim_body("PistolInspect")
+		Weapon.WEAPON_TYPES.RIFLE:
+			play_oneshot_anim_body("RifleInspect")
+	
+	# Reset inspecting state when animation ends
+	var arms_anim: AnimationPlayer = current_arm_rig.get_node("anim_oneshot")
+	if not arms_anim.animation_finished.is_connected(_on_inspect_finished):
+		arms_anim.animation_finished.connect(_on_inspect_finished, CONNECT_ONE_SHOT)
 
-
-
+func _on_inspect_finished(anim_name: StringName):
+	if anim_name == "inspect":
+		inspecting = false
 
 @rpc("authority", "call_local", "reliable")
 func reload():
@@ -557,6 +537,8 @@ func reload():
 		return
 	if current_weapon.current_ammo >= current_weapon.max_ammo: 
 		return
+	if inspecting or is_aiming or weapon_switching:  # Don't allow reload while inspecting, aiming, or switching
+		return
 	
 	# Check if player has reserve ammo before allowing reload
 	if ammo.get(current_weapon.name, 0) <= 0:
@@ -564,6 +546,10 @@ func reload():
 
 	# Set reloading state
 	reloading = true
+
+	# Move weapon armature to reload position (optional)
+	if current_arm_rig and current_arm_rig.has_node("LVA4_Armature"):
+		current_arm_rig.get_node("LVA4_Armature").set_p1_ads(true)  # Use p1 for reload position
 
 	# Play reload sound without interrupting previous reloads
 	if reload_sound and reload_sound.stream:
@@ -593,30 +579,37 @@ func reload():
 	# Ensure reloading state is reset when animation ends
 	var arms_anim: AnimationPlayer = current_arm_rig.get_node("anim_oneshot")
 	if not arms_anim.animation_finished.is_connected(_on_reload_finished):
-		arms_anim.animation_finished.connect(_on_reload_finished)
+		arms_anim.animation_finished.connect(_on_reload_finished, CONNECT_ONE_SHOT)
 
 	match current_weapon.weapon_type:
 		Weapon.WEAPON_TYPES.PISTOL:
-			play_oneshot_anim_body("PistolReload")
+			play_oneshot_anim_body("reload")
 		Weapon.WEAPON_TYPES.RIFLE:
-			play_oneshot_anim_body("RifleReload")
+			play_oneshot_anim_body("reload")
 
 	hud.update_ammo()
 	reload_time_remaining = current_weapon.reload_time
 
-
 func _on_reload_finished(anim_name: StringName):
 	if anim_name == "reload":
 		reloading = false  # Reset reloading state
-
-		# Get reference to the AnimationPlayer
-		var continue_player: AnimationPlayer = current_arm_rig.get_node("anim_continue")
+		
+		# Restore weapon armature position after reload
+		if current_arm_rig and current_arm_rig.has_node("LVA4_Armature"):
+			var armature = current_arm_rig.get_node("LVA4_Armature")
+			armature.set_p1_ads(false)  # Stop reload position
+			if is_aiming:
+				armature.set_p0_ads(true)  # Return to ADS if still aiming
+			else:
+				armature.set_p0_ads(false)  # Return to normal position
 
 @rpc("authority", "call_local", "reliable")
 func shoot():
 	if shoot_cooldown > 0.0:
 		return
 	if reload_time_remaining > 0.0:
+		return
+	if reloading or inspecting or weapon_switching:  # Don't shoot while reloading, inspecting, or switching weapons
 		return
 	if current_weapon.current_ammo <= 0:
 		reload()
@@ -626,7 +619,7 @@ func shoot():
 	if shoot_sound and shoot_sound.stream:
 		var new_shoot_sound = shoot_sound.duplicate()
 		add_child(new_shoot_sound)
-		new_shoot_sound.pitch_scale = randf_range(0.99, 1.00)  # Random slight variation
+		new_shoot_sound.pitch_scale = randf_range(0.99, 1.00)
 		new_shoot_sound.play()
 		new_shoot_sound.finished.connect(new_shoot_sound.queue_free)
 
@@ -637,26 +630,23 @@ func shoot():
 	bullet.global_transform = barrel.global_transform
 
 	# **Connect bullet's hit event to move_tracer()**
-	bullet.connect("bullet_hit", move_tracer)  # Calls move_tracer(hit_position) when bullet hits
+	bullet.connect("bullet_hit", move_tracer)
 
-	# **Play animations**
-	if ads_mode:
-		play_oneshot_anim_arms("fire_ads")
-		activate_muzzle_flash()
-	else:
-		play_oneshot_anim_arms("fire_idle")
-		activate_muzzle_flash()
+	# **Play idle fire animation (no ADS specific animation)**
+	play_oneshot_anim_arms("fire_idle")
+	
+	activate_muzzle_flash()
 
-	# **Apply recoil**
-	recoil_offset.y += current_weapon.recoil_strength.x  # Vertical kick
-	recoil_offset.x += randf_range(-current_weapon.recoil_strength.y, current_weapon.recoil_strength.y)  # Random horizontal sway
+	# **Apply recoil - reduce recoil while aiming**
+	var recoil_multiplier = 0.5 if is_aiming else 1.0
+	recoil_offset.y += current_weapon.recoil_strength.x * recoil_multiplier
+	recoil_offset.x += randf_range(-current_weapon.recoil_strength.y, current_weapon.recoil_strength.y) * recoil_multiplier
 
 	# **Reduce ammo and set cooldown**
 	shoot_cooldown = current_weapon.cooldown
 	current_weapon.current_ammo -= 1
 	hud.update_ammo()
-	hud.flash_shoot_indicator()  # <- Simple flash!
-
+	hud.flash_shoot_indicator()
 
 func move_tracer(hit_position: Vector3):
 	if tracer_scene == null:
@@ -691,7 +681,6 @@ func move_tracer(hit_position: Vector3):
 	await get_tree().create_timer(travel_time).timeout
 	tracer.queue_free()  # Deletes the tracer after it reaches its target
 
-
 func melee():
 	pass
 
@@ -707,7 +696,6 @@ func take_damage(damage: int, type: String, enemy_source_path: NodePath, hit_pos
 	if enemy_source and enemy_source.has_method("get_multiplayer_authority"):
 		if enemy_source.get_multiplayer_authority() != multiplayer.get_remote_sender_id():
 			return
-
 
 	health -= damage
 	hud.hp_target = health
@@ -747,7 +735,6 @@ func take_damage(damage: int, type: String, enemy_source_path: NodePath, hit_pos
 func _camera_flinch():
 	# Define flinch strength
 	var flinch_strength = 0.05  # Adjust as needed
-	var flinch_recovery_speed = 350.0  # How quickly it returns to normal
 
 	# Apply a quick camera shake
 	var flinch_x = randf_range(-flinch_strength, flinch_strength)
@@ -762,7 +749,6 @@ func _camera_flinch():
 	tween.tween_property(camera, "rotation:x", camera.rotation.x - flinch_x, 0.1).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	tween.tween_property(camera, "rotation:y", camera.rotation.y - flinch_y, 0.1).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 
-
 @rpc("any_peer", "call_local", "reliable")
 func die(_func_stage := 0, enemy_source_path := ""):
 	match _func_stage:
@@ -770,6 +756,17 @@ func die(_func_stage := 0, enemy_source_path := ""):
 			if dead:
 				return
 			dead = true
+
+			# Reset states when dying
+			reloading = false
+			inspecting = false
+			weapon_switching = false
+			if is_aiming:
+				stop_ads()
+
+			# Reset weapon armature position
+			if current_arm_rig and current_arm_rig.has_node("LVA4_Armature"):
+				current_arm_rig.get_node("LVA4_Armature").set_p0_ads(false)
 
 			# Play death animation
 			var anim_name = ""
@@ -806,7 +803,6 @@ func die(_func_stage := 0, enemy_source_path := ""):
 			enemy_that_killed = null
 			$die_anim.play("RESET")
 
-
 func _on_death_anim_done(anim:StringName, _func_stage):
 	if not "Death" in anim: return
 	die(_func_stage)
@@ -817,45 +813,22 @@ func score_point(score_change):
 	if current_score >= Game.world.target_score:
 		Game.world.end_game(self)
 
-
 func play_oneshot_anim_arms(anim_name: String, custom_blend: float = -1.0, custom_speed: float = 1.0, from_end: bool = false):
 	var arms_anim: AnimationPlayer = current_arm_rig.get_node("anim_oneshot")
 
 	# Use predefined blend times if available
 	if custom_blend == -1.0 and anim_name in animation_blends:
 		custom_blend = animation_blends[anim_name]
+	elif custom_blend == -1.0:
+		custom_blend = 0.1  # Default blend
 
 	arms_anim.play(anim_name, custom_blend, custom_speed, from_end)
 
-
 func play_oneshot_anim_body(anim_name:String, custom_blend:=-1.0, custom_speed:=1.0, from_end:=false):
 	var body_anim : AnimationPlayer = body_rig.get_node("anim_oneshot")
+	if custom_blend == -1.0:
+		custom_blend = 0.1
 	body_anim.play(anim_name, custom_blend, custom_speed, from_end)
-
-var ads_triggered_time := 0.0
-var ads_release_requested := false
-const ADS_MIN_DURATION := 0.45
-
-@rpc("authority", "call_local", "reliable")
-func set_ads(is_aiming: bool):
-	if is_aiming:
-		# Enter ADS
-		ads_mode = true
-		ads_triggered_time = Time.get_ticks_msec() / 1000.0
-		ads_release_requested = false
-		ads_fov_target = ads_fov_min
-		hud.fade_reticle(false)
-	else:
-		# Only allow exit if 1 second has passed since entering ADS
-		var time_since_ads = (Time.get_ticks_msec() / 1000.0) - ads_triggered_time
-		if time_since_ads >= ADS_MIN_DURATION:
-			ads_mode = false
-			ads_fov_target = ads_fov_max
-			hud.fade_reticle(true)
-			ads_release_requested = false
-		else:
-			# Queue exit once time is up
-			ads_release_requested = true
 
 func _set_arm_vis_recursive(parent):
 	if parent is VisualInstance3D:
@@ -883,9 +856,9 @@ func _set_muzzle_flash_vis_recursive(parent):
 		_set_muzzle_flash_vis_recursive(child)
 
 func activate_muzzle_flash():
-	# Activate muzzle flash on the weapon
-	if current_arm_rig.has_node("muzzle_flash"):
-		var flash = current_arm_rig.get_node("muzzle_flash")
+	# Activate muzzle flash on the weapon (now under LVA4_Armature)
+	if current_arm_rig.has_node("LVA4_Armature/muzzle_flash"):
+		var flash = current_arm_rig.get_node("LVA4_Armature/muzzle_flash")
 		if flash.has_node("sprite"):
 			var sprite = flash.get_node("sprite")
 			sprite.visible = true
@@ -904,9 +877,9 @@ func activate_muzzle_flash():
 
 	await get_tree().create_timer(0.1).timeout
 
-	# Deactivate muzzle flash on the weapon
-	if current_arm_rig.has_node("muzzle_flash"):
-		var flash = current_arm_rig.get_node("muzzle_flash")
+	# Deactivate muzzle flash on the weapon (now under LVA4_Armature)
+	if current_arm_rig.has_node("LVA4_Armature/muzzle_flash"):
+		var flash = current_arm_rig.get_node("LVA4_Armature/muzzle_flash")
 		if flash.has_node("sprite"):
 			flash.get_node("sprite").visible = false
 		if flash.has_node("omni_light"):
@@ -919,29 +892,23 @@ func activate_muzzle_flash():
 			player_flash.get_node("sprite").visible = false
 		if player_flash.has_node("omni_light"):
 			player_flash.get_node("omni_light").visible = false
-			
 
 var target_bob_offset := 0.0
 var current_bob_offset := 0.0
 
 func _handle_arms_bob(delta: float) -> void:
 	if speed > 0.1 and is_on_floor():
-		# Adjust bob speed and strength based on ADS
-		var effective_bob_speed = bob_speed
-		var effective_bob_amount = bob_amount
-
-		if ads_mode:
-			effective_bob_speed *= 0.5  # Half speed during ADS
-			effective_bob_amount *= 0.5  # Half height during ADS
-
-		arm_bob_time += delta * effective_bob_speed
-		target_bob_offset = sin(arm_bob_time) * effective_bob_amount
+		arm_bob_time += delta * bob_speed
+		target_bob_offset = sin(arm_bob_time) * bob_amount
+		
+		# Reduce bobbing while aiming
+		if is_aiming:
+			target_bob_offset *= 0.3
 	else:
 		target_bob_offset = 0.0
 
 	current_bob_offset = lerp(current_bob_offset, target_bob_offset, delta * 8.0)
 	arms_rig.transform.origin.y = current_bob_offset
-
 
 func _handle_walk_sound():
 	if speed > 0.0 and is_on_floor():
@@ -955,7 +922,6 @@ func _handle_walk_sound():
 		walk_sound.stop()
 
 ## Spine Bend with Camera ##
-
 @onready var spine = $spine
 @onready var look_object = $"camera/look_object"
 @onready var skeleton = $body/body_rig/Armature/Skeleton3D
@@ -983,7 +949,6 @@ func look_at_object(delta):
 	))
 
 	skeleton.set_bone_pose_rotation(neck_bone, new_rotation)
-	
 
 @rpc("authority", "call_remote", "unreliable")
 func sync_health(value: int):
@@ -994,9 +959,3 @@ func sync_health(value: int):
 func _process(delta: float) -> void:
 	look_at_object(delta)
 	_handle_arms_bob(delta)
-	
-	# Handle queued ADS release
-	if ads_release_requested:
-		var time_since_ads = (Time.get_ticks_msec() / 1000.0) - ads_triggered_time
-		if time_since_ads >= ADS_MIN_DURATION:
-			set_ads(false)
