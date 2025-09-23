@@ -51,10 +51,11 @@ Programming & Design Contributors
 - Michelle Lehto – Programmer (https://www.michellelehto-gamedesign.com/)
 - Richasey Sok – Animator (https://www.artstation.com/richmemes/profile)
 
-Assets
+3rd Party Assets
 
 - AK74 – (https://sketchfab.com/3d-models/low-poly-aks-74-f2954db658a24c6eaced03e7f33e3bd3)
 - Tarus Judge – (https://sketchfab.com/3d-models/low-poly-taurus-raging-bull-454-casull-599549ef512e4eb29824429d574f1a17)
+- Kar98 = (https://sketchfab.com/3d-models/low-poly-kar98k-d0ffca9b52864541ae5adbafb8d14064)
 
 - Player Model – (https://sketchfab.com/3d-models/low-poly-soldier-0761b06f2b8a4d309c074f87525a0142)
 - Arms Rig – (https://hozq3d.gumroad.com/l/LVA4)
