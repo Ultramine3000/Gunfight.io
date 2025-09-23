@@ -20,6 +20,12 @@ extends Node3D
 @export_range(0.0, 0.1) var vertical_amplitude := 0.1  # Vertical sway amount (very small)
 @export_range(0.0, 0.1) var roll_amplitude := 0.05  # Roll rotation amount (tiny)
 
+## SPRINT ANIMATION SETTINGS ##
+@export_category("Sprint Animation")
+@export var sprint_position: Vector3 = Vector3(0, -0.1, 0.05)  # Position offset when sprinting
+@export var sprint_rotation: Vector3 = Vector3(-10, 5, -15)  # Rotation offset when sprinting (degrees)
+@export_range(0.0, 1.0) var sprint_transition_speed := 8.0  # How quickly sprint animation blends in/out
+
 ## PLAYER INPUT RESPONSE SETTINGS ##
 @export_category("Input Response Settings")
 @export_range(0.0, 10.0) var input_response_strength := 2.0  # How much the weapon responds to input
@@ -28,6 +34,7 @@ extends Node3D
 
 ## INTERNAL VARIABLES ##
 var is_ads: bool = false
+var is_sprinting: bool = false
 var tween: Tween
 var starting_position: Vector3  # The original position when scene loads
 var starting_rotation: Vector3  # The original rotation when scene loads
@@ -37,6 +44,12 @@ var time_elapsed := 0.0
 var current_input_offset := Vector3.ZERO
 var target_input_offset := Vector3.ZERO
 var player_reference : Player  # Reference to the parent player
+
+# Sprint animation variables
+var current_sprint_intensity := 0.0
+var target_sprint_intensity := 0.0
+var current_sprint_position_offset := Vector3.ZERO
+var current_sprint_rotation_offset := Vector3.ZERO
 
 # Scope variables
 var scope_node: Node = null
@@ -97,13 +110,17 @@ func _initialize_scope():
 func _process(delta: float):
 	time_elapsed += delta * rotation_speed
 	
+	# Update sprint state
+	_update_sprint_state(delta)
+	
 	# Update input response
 	_update_input_response(delta)
 	
-	# Create figure-8 pattern using sine waves with different frequencies
-	var horizontal_sway = sin(time_elapsed) * horizontal_amplitude
-	var vertical_sway = sin(time_elapsed * 2.0) * vertical_amplitude  # Double frequency for figure-8
-	var roll_sway = sin(time_elapsed * 0.5) * roll_amplitude  # Half frequency for subtle roll
+	# Create base figure-8 pattern (reduced when sprinting)
+	var figure8_intensity = 1.0 - (current_sprint_intensity * 0.8)  # Reduce figure-8 when sprinting
+	var horizontal_sway = sin(time_elapsed) * horizontal_amplitude * figure8_intensity
+	var vertical_sway = sin(time_elapsed * 2.0) * vertical_amplitude * figure8_intensity
+	var roll_sway = sin(time_elapsed * 0.5) * roll_amplitude * figure8_intensity
 	
 	# Base figure-8 rotation
 	var figure8_rotation = Vector3(
@@ -112,8 +129,43 @@ func _process(delta: float):
 		roll_sway        # Z-axis (roll)
 	)
 	
-	# Apply the subtle rotations plus input response to the starting rotation
-	rotation_degrees = starting_rotation + figure8_rotation + current_input_offset
+	# Apply the subtle rotations plus input response plus sprint animation to the starting rotation
+	rotation_degrees = starting_rotation + figure8_rotation + current_input_offset + current_sprint_rotation_offset
+	
+	# Update position with sprint offset
+	_update_position_with_sprint()
+
+func _update_sprint_state(delta: float):
+	# Check if player is sprinting
+	if player_reference:
+		target_sprint_intensity = 1.0 if player_reference.is_sprinting else 0.0
+	else:
+		target_sprint_intensity = 0.0
+	
+	# Smoothly transition sprint intensity
+	current_sprint_intensity = lerp(current_sprint_intensity, target_sprint_intensity, sprint_transition_speed * delta)
+	
+	# Apply sprint position and rotation offsets
+	current_sprint_position_offset = sprint_position * current_sprint_intensity
+	current_sprint_rotation_offset = sprint_rotation * current_sprint_intensity
+
+func _update_position_with_sprint():
+	var target_pos: Vector3
+	
+	# Determine base position based on ADS state
+	if is_ads:
+		target_pos = starting_position + ads_position
+	else:
+		target_pos = starting_position + idle_position
+	
+	# Add sprint position offset
+	target_pos += current_sprint_position_offset
+	
+	# Apply position with smooth transition
+	if use_animation and not is_equal_approx(transform.origin.distance_to(target_pos), 0.0):
+		animate_to_position(target_pos)
+	else:
+		transform.origin = target_pos
 
 func _update_input_response(delta: float):
 	if player_reference == null:
@@ -122,10 +174,12 @@ func _update_input_response(delta: float):
 	# Calculate target offset based on input
 	target_input_offset = Vector3.ZERO
 	
-	# Get current response strength (reduced when ADS)
+	# Get current response strength (reduced when ADS or sprinting)
 	var current_strength = input_response_strength
 	if player_reference.is_aiming:
 		current_strength *= ads_reduction_factor  # 10x reduction when aiming
+	elif current_sprint_intensity > 0.01:
+		current_strength *= 0.3  # Reduce input response when sprinting
 	
 	# Get input values based on player type
 	var horizontal_input := 0.0
@@ -165,6 +219,8 @@ func _update_input_response(delta: float):
 	var lerp_speed = input_smoothing
 	if player_reference.is_aiming:
 		lerp_speed *= 0.5  # Even smoother when aiming
+	elif current_sprint_intensity > 0.01:
+		lerp_speed *= 2.0  # Faster response when sprinting for more dynamic feel
 	
 	current_input_offset = current_input_offset.lerp(target_input_offset, lerp_speed)
 	
@@ -265,17 +321,8 @@ func set_p1_ads(value: bool):
 	pass
 
 func update_position():
-	var target_pos: Vector3
-	
-	if is_ads:
-		target_pos = starting_position + ads_position
-	else:
-		target_pos = starting_position + idle_position
-	
-	if use_animation:
-		animate_to_position(target_pos)
-	else:
-		transform.origin = target_pos
+	# Position update is now handled in _update_position_with_sprint()
+	pass
 
 func animate_to_position(pos: Vector3):
 	if tween:
@@ -295,5 +342,8 @@ func reset_to_starting():
 	transform.origin = starting_position
 	rotation_degrees = starting_rotation
 	is_ads = false
+	current_sprint_intensity = 0.0
+	current_sprint_position_offset = Vector3.ZERO
+	current_sprint_rotation_offset = Vector3.ZERO
 	# Make sure scope is hidden when resetting
 	_hide_scope()

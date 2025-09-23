@@ -103,15 +103,14 @@ var switch_cooldown := 0.0
 var enemy_that_killed : Player
 var reload_time_remaining := 0.0
 
-# Define custom blend times for transitions
+# Define custom blend times for transitions (removed sprint entry)
 var animation_blends = {
 	"idle": 0.5,
-	"fire_idle": 0.0,
+	"fire_idle": 0.1,
 	"reload": 0.0,
 	"draw": 0.0,
 	"holster": 0.0,
 	"inspect": 0.0,
-	"sprint": 0.5,  # New sprint animation blend
 }
 
 func _ready() -> void:
@@ -147,14 +146,13 @@ func _ready() -> void:
 		side_weapon.current_ammo = side_weapon.max_ammo
 	switch_weapon(true)
 	
-	# Initialise animation inputs
+	# Initialise animation inputs (removed sprint entry)
 	animation_inputs = {
 		"walk_fw": false,
 		"walk_bk": false,
 		"walk_lf": false,
 		"walk_rt": false,
 		"jump": false,
-		"sprint": false,  # New sprint input
 	}
 	
 	# Misc.
@@ -348,14 +346,9 @@ func _movement_process(delta):
 func _anim_arms_process():
 	var continue_player: AnimationPlayer = current_arm_rig.get_node("anim_continue")
 
+	# Always play idle animation for arms - sprint animation is now procedural
 	var anim_to_play := "idle"
 	var custom_speed := 1.0
-
-	# Check if sprinting and play sprint animation
-	if is_sprinting:
-		anim_to_play = "sprint"
-	else:
-		anim_to_play = "idle"
 
 	# Get custom blend from animation_blends dictionary
 	var custom_blend = animation_blends.get(anim_to_play, 0.1)
@@ -374,9 +367,9 @@ func _anim_body_process(player_id):
 	# Animation speed settings
 	var animation_speeds = {
 		"PistolIdle": 1.0, "PistolMoveForward": 0.85, "PistolMoveLeft": 1.0, "PistolMoveRight": 1.0,
-		"PistolMoveBack": 0.85, "PistolJump": 1.0, "PistolSprint": 1.2,  # New sprint animation
+		"PistolMoveBack": 0.85, "PistolJump": 1.0, "PistolSprint": 1.2,  # Keep sprint animation for body
 		"RifleIdle": 1.0, "RifleMoveForward": 0.9, "RifleMoveLeft": 1.45, "RifleMoveRight": 1.45,
-		"RifleMoveBack": 0.9, "RifleJump": 1.0, "RifleSprint": 1.2  # New sprint animation
+		"RifleMoveBack": 0.9, "RifleJump": 1.0, "RifleSprint": 1.2  # Keep sprint animation for body
 	}
 
 	# Determine the correct weapon prefix
@@ -387,7 +380,7 @@ func _anim_body_process(player_id):
 		Weapon.WEAPON_TYPES.RIFLE:
 			weapon_prefix = "Rifle"
 
-	# Map player inputs to animations
+	# Map player inputs to animations (removed sprint from animation_inputs)
 	if is_multiplayer_authority():
 		animation_inputs = {
 			"walk_fw": Input.is_action_pressed("p%d_walk_fw" % player_id),
@@ -395,17 +388,16 @@ func _anim_body_process(player_id):
 			"walk_lf": Input.is_action_pressed("p%d_walk_lf" % player_id),
 			"walk_rt": Input.is_action_pressed("p%d_walk_rt" % player_id),
 			"jump": Input.is_action_pressed("p%d_jump" % player_id),
-			"sprint": is_sprinting  # Use the sprint state
 		}
 
 	# Handle jump
 	if animation_inputs["jump"] and not is_on_floor():
 		anim_to_play = "Jump"
-	# Handle sprint (only when moving forward)
-	elif animation_inputs["sprint"] and animation_inputs["walk_fw"]:
+	# Handle sprint (only when moving forward) - keep body sprint animation
+	elif is_sprinting and animation_inputs["walk_fw"]:
 		anim_to_play = "Sprint"
 	else:
-		# Movement logic (no sprint here, handled above)
+		# Movement logic
 		if animation_inputs["walk_fw"]:
 			anim_to_play = "MoveForward"
 		elif animation_inputs["walk_bk"]:
@@ -672,8 +664,8 @@ func shoot():
 	# **Connect bullet's hit event to move_tracer()**
 	bullet.connect("bullet_hit", move_tracer)
 
-	# **Play idle fire animation (no ADS specific animation)**
-	play_oneshot_anim_arms("fire_idle")
+	# **Force play fire animation for automatic weapons**
+	play_oneshot_anim_arms_force("fire_idle")
 	
 	activate_muzzle_flash()
 
@@ -687,6 +679,20 @@ func shoot():
 	current_weapon.current_ammo -= 1
 	hud.update_ammo()
 	hud.flash_shoot_indicator()
+
+# New function to force play animations (useful for rapid fire)
+func play_oneshot_anim_arms_force(anim_name: String, custom_blend: float = -1.0, custom_speed: float = 1.0, from_end: bool = false):
+	var arms_anim: AnimationPlayer = current_arm_rig.get_node("anim_oneshot")
+
+	# Use predefined blend times if available
+	if custom_blend == -1.0 and anim_name in animation_blends:
+		custom_blend = animation_blends[anim_name]
+	elif custom_blend == -1.0:
+		custom_blend = 0.1  # Default blend
+
+	# Force play the animation even if it's the same as current
+	arms_anim.stop()  # Stop current animation
+	arms_anim.play(anim_name, custom_blend, custom_speed, from_end)
 
 func move_tracer(hit_position: Vector3):
 	if tracer_scene == null:
@@ -966,7 +972,7 @@ func _handle_walk_sound():
 		
 		# Double the pitch when sprinting (2x speed)
 		if is_sprinting:
-			walk_sound.pitch_scale = speed_ratio * 1.25
+			walk_sound.pitch_scale = speed_ratio * 1.15
 		else:
 			walk_sound.pitch_scale = speed_ratio
 	else:

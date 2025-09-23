@@ -10153,10 +10153,15 @@ script = ExtResource("1_22hq4")
 player_ctrl_port = 1
 idle_position = Vector3(0, -0.071, -0.071)
 ads_position = Vector3(-0.081, -0.046, -0.145)
+animation_duration = 0.2
+horizontal_amplitude = 0.015
+vertical_amplitude = 0.01
+roll_amplitude = 0.016
+sprint_position = Vector3(0, 0, 0)
+sprint_rotation = Vector3(-12, 15, 30)
 
 [node name="muzzle_flash" type="Node3D" parent="LVA4_Armature"]
 transform = Transform3D(4.975, 0, 0, 0, 4.975, 0, 0, 0, 4.975, 0.0779825, 0.00408419, -0.566734)
-visible = false
 
 [node name="omni_light" type="OmniLight3D" parent="LVA4_Armature/muzzle_flash"]
 transform = Transform3D(1.00503, 0, 0, 0, 1.00503, 0, 0, 0, 1.00503, 0, 0, 0)
@@ -10167,6 +10172,7 @@ omni_range = 2.23784
 
 [node name="sprite" type="AnimatedSprite3D" parent="LVA4_Armature/muzzle_flash"]
 transform = Transform3D(0.005, 0, 0, 0, 0.005, 0, 0, 0, 0.005, 0, -0.000908649, 0)
+visible = false
 material_override = SubResource("StandardMaterial3D_8uvo4")
 sprite_frames = SubResource("SpriteFrames_xk64w")
 
@@ -10707,7 +10713,7 @@ bones/76/name = "Ejector"
 bones/76/parent = 75
 bones/76/rest = Transform3D(8.04663e-06, 0.00143963, -0.999999, -1, 0.000108164, -7.89092e-06, 0.000108153, 0.999999, 0.00143963, -0.000105928, 0.0127941, -0.0604888)
 bones/76/enabled = true
-bones/76/position = Vector3(-0.000105925, 0.0127941, -0.0604888)
+bones/76/position = Vector3(-8.35023e-05, 0.0127958, -0.0449124)
 bones/76/rotation = Quaternion(0.499615, -0.499665, -0.500331, 0.500389)
 bones/76/scale = Vector3(1, 1, 1)
 bones/77/name = "Hammer"
@@ -10796,7 +10802,7 @@ bones/88/rotation = Quaternion(0.709589, 0.000327045, 0.000851674, 0.704615)
 bones/88/scale = Vector3(0.0841538, 0.0841538, 0.0841538)
 
 [node name="Plane" type="BoneAttachment3D" parent="LVA4_Armature/Skeleton3D"]
-transform = Transform3D(0.00219324, -1.61386e-06, 3.66174e-06, 3.6503e-06, -1.54291e-05, -0.00219318, 1.63957e-06, 0.00219319, -1.54265e-05, 0.0812603, 0.0186711, -0.458925)
+transform = Transform3D(0.00219324, -1.61386e-06, 3.66174e-06, 3.6503e-06, -1.54291e-05, -0.00219319, 1.63957e-06, 0.00219319, -1.54265e-05, 0.0812603, 0.0186711, -0.458925)
 visible = false
 bone_name = "Plane"
 bone_idx = 88
