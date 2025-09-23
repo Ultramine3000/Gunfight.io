@@ -19,7 +19,7 @@ This repo contains:
 
 ---
 
-## 📚 Documentation
+## 📚 Documentation [OUTDATED!]
 
 - [🧱 Structural Overview](https://docs.google.com/document/d/1jWBEwnT29V8z_T25yzT65mU_OWR1ia4tj7IN8MX6FJ8/edit?tab=t.0)  
   Learn how the codebase and asset folders are organized.
