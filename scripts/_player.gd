@@ -54,12 +54,14 @@ var target_look_input := Vector2.ZERO
 ## MOVEMENT ##
 @export_category("Movement")
 @export_range(0.0, 100.0) var max_walk_speed := 0.0
+@export_range(0.0, 100.0) var max_sprint_speed := 0.0  # New sprint speed
 @export_range(0.0, 20.0) var accel := 0.0
 @export_range(0.0, 20.0) var decel := 0.0
 const GRAVITY_COLLIDE := -0.1
 var direction : Vector3
 var speed := 0.0
 var animation_inputs: Dictionary[String, bool]
+var is_sprinting := false  # New sprint state
 
 ## JUMPING ##
 @export_category("Jumping")
@@ -103,12 +105,13 @@ var reload_time_remaining := 0.0
 
 # Define custom blend times for transitions
 var animation_blends = {
-	"idle": 0.0,
+	"idle": 0.5,
 	"fire_idle": 0.0,
 	"reload": 0.0,
 	"draw": 0.0,
 	"holster": 0.0,
 	"inspect": 0.0,
+	"sprint": 0.5,  # New sprint animation blend
 }
 
 func _ready() -> void:
@@ -151,6 +154,7 @@ func _ready() -> void:
 		"walk_lf": false,
 		"walk_rt": false,
 		"jump": false,
+		"sprint": false,  # New sprint input
 	}
 	
 	# Misc.
@@ -199,20 +203,44 @@ func _control_process():
 	if Input.is_action_just_pressed("p"+str(ctrl_port)+"_reload"):
 		reload.rpc()
 	
-	# Handle ADS input
-	if Input.is_action_pressed("p"+str(ctrl_port)+"_ads"):
+	# Handle sprint input
+	if Input.is_action_pressed("p"+str(ctrl_port)+"_sprint"):
+		start_sprint()
+	else:
+		stop_sprint()
+	
+	# Handle ADS input - disable ADS while sprinting
+	if Input.is_action_pressed("p"+str(ctrl_port)+"_ads") and not is_sprinting:
 		if not is_aiming and not weapon_switching:  # Don't allow ADS during weapon switch
 			start_ads()
 	else:
 		if is_aiming:
 			stop_ads()
 
+func start_sprint():
+	# Don't allow sprint while reloading, inspecting, aiming, or weapon switching
+	if reloading or inspecting or is_aiming or weapon_switching or dead:
+		return
+	
+	# Only sprint when moving forward
+	var moving_forward = Input.is_action_pressed("p"+str(ctrl_port)+"_walk_fw")
+	if not moving_forward:
+		stop_sprint()
+		return
+	
+	if not is_sprinting:
+		is_sprinting = true
+
+func stop_sprint():
+	if is_sprinting:
+		is_sprinting = false
+
 func _ads_process(delta: float):
 	# Smoothly transition FOV for zoom effect
 	camera.fov = lerp(camera.fov, target_fov, ads_transition_speed * delta)
 
 func start_ads():
-	if reloading or inspecting or dead or weapon_switching:
+	if reloading or inspecting or dead or weapon_switching or is_sprinting:
 		return
 	
 	is_aiming = true
@@ -289,7 +317,8 @@ func _movement_process(delta):
 	if direction.length() > 1.0:
 		direction = direction.normalized()
 
-	var true_max_speed = max_walk_speed
+	# Determine max speed based on sprint state
+	var true_max_speed = max_sprint_speed if is_sprinting else max_walk_speed
 	
 	# Reduce movement speed while aiming
 	if is_aiming:
@@ -322,8 +351,11 @@ func _anim_arms_process():
 	var anim_to_play := "idle"
 	var custom_speed := 1.0
 
-	# Use idle animation regardless of ADS state
-	anim_to_play = "idle"
+	# Check if sprinting and play sprint animation
+	if is_sprinting:
+		anim_to_play = "sprint"
+	else:
+		anim_to_play = "idle"
 
 	# Get custom blend from animation_blends dictionary
 	var custom_blend = animation_blends.get(anim_to_play, 0.1)
@@ -342,9 +374,9 @@ func _anim_body_process(player_id):
 	# Animation speed settings
 	var animation_speeds = {
 		"PistolIdle": 1.0, "PistolMoveForward": 0.85, "PistolMoveLeft": 1.0, "PistolMoveRight": 1.0,
-		"PistolMoveBack": 0.85, "PistolJump": 1.0,
+		"PistolMoveBack": 0.85, "PistolJump": 1.0, "PistolSprint": 1.2,  # New sprint animation
 		"RifleIdle": 1.0, "RifleMoveForward": 0.9, "RifleMoveLeft": 1.45, "RifleMoveRight": 1.45,
-		"RifleMoveBack": 0.9, "RifleJump": 1.0
+		"RifleMoveBack": 0.9, "RifleJump": 1.0, "RifleSprint": 1.2  # New sprint animation
 	}
 
 	# Determine the correct weapon prefix
@@ -362,14 +394,18 @@ func _anim_body_process(player_id):
 			"walk_bk": Input.is_action_pressed("p%d_walk_bk" % player_id),
 			"walk_lf": Input.is_action_pressed("p%d_walk_lf" % player_id),
 			"walk_rt": Input.is_action_pressed("p%d_walk_rt" % player_id),
-			"jump": Input.is_action_pressed("p%d_jump" % player_id)
+			"jump": Input.is_action_pressed("p%d_jump" % player_id),
+			"sprint": is_sprinting  # Use the sprint state
 		}
 
 	# Handle jump
 	if animation_inputs["jump"] and not is_on_floor():
 		anim_to_play = "Jump"
+	# Handle sprint (only when moving forward)
+	elif animation_inputs["sprint"] and animation_inputs["walk_fw"]:
+		anim_to_play = "Sprint"
 	else:
-		# Movement logic (no sprint)
+		# Movement logic (no sprint here, handled above)
 		if animation_inputs["walk_fw"]:
 			anim_to_play = "MoveForward"
 		elif animation_inputs["walk_bk"]:
@@ -395,6 +431,8 @@ func jump():
 	if not is_on_floor():
 		return
 	jump_queued = true
+	# Stop sprinting when jumping
+	stop_sprint()
 
 @rpc("authority", "call_local", "reliable")
 func switch_weapon(update_only: bool = false) -> void:
@@ -406,9 +444,11 @@ func switch_weapon(update_only: bool = false) -> void:
 	weapon_switching = true
 	switch_cooldown = switch_cooldown_time
 		
-	# Stop ADS when switching weapons
+	# Stop ADS and sprint when switching weapons
 	if is_aiming:
 		stop_ads()
+	if is_sprinting:
+		stop_sprint()
 		
 	if not update_only:
 		# Play holster sound from the current weapon, if the node and sound are valid.
@@ -504,8 +544,8 @@ func switch_weapon(update_only: bool = false) -> void:
 
 @rpc("authority", "call_local", "reliable")
 func inspect_weapon():
-	# Don't allow inspect while reloading, shooting, already inspecting, aiming, or weapon switching
-	if reloading or inspecting or shoot_cooldown > 0.0 or is_aiming or weapon_switching:
+	# Don't allow inspect while reloading, shooting, already inspecting, aiming, sprinting, or weapon switching
+	if reloading or inspecting or shoot_cooldown > 0.0 or is_aiming or is_sprinting or weapon_switching:
 		return
 	
 	inspecting = true
@@ -537,7 +577,7 @@ func reload():
 		return
 	if current_weapon.current_ammo >= current_weapon.max_ammo: 
 		return
-	if inspecting or is_aiming or weapon_switching:  # Don't allow reload while inspecting, aiming, or switching
+	if inspecting or is_aiming or is_sprinting or weapon_switching:  # Don't allow reload while sprinting
 		return
 	
 	# Check if player has reserve ammo before allowing reload
@@ -609,7 +649,7 @@ func shoot():
 		return
 	if reload_time_remaining > 0.0:
 		return
-	if reloading or inspecting or weapon_switching:  # Don't shoot while reloading, inspecting, or switching weapons
+	if reloading or inspecting or is_sprinting or weapon_switching:  # Don't shoot while sprinting
 		return
 	if current_weapon.current_ammo <= 0:
 		reload()
@@ -761,6 +801,7 @@ func die(_func_stage := 0, enemy_source_path := ""):
 			reloading = false
 			inspecting = false
 			weapon_switching = false
+			is_sprinting = false  # Stop sprinting when dying
 			if is_aiming:
 				stop_ads()
 
@@ -898,12 +939,17 @@ var current_bob_offset := 0.0
 
 func _handle_arms_bob(delta: float) -> void:
 	if speed > 0.1 and is_on_floor():
-		arm_bob_time += delta * bob_speed
+		# Increase bob speed during sprint
+		var bob_speed_multiplier = 1.5 if is_sprinting else 1.0
+		arm_bob_time += delta * bob_speed * bob_speed_multiplier
 		target_bob_offset = sin(arm_bob_time) * bob_amount
 		
 		# Reduce bobbing while aiming
 		if is_aiming:
 			target_bob_offset *= 0.3
+		# Increase bobbing while sprinting
+		elif is_sprinting:
+			target_bob_offset *= 1.3
 	else:
 		target_bob_offset = 0.0
 
@@ -915,9 +961,14 @@ func _handle_walk_sound():
 		if not walk_sound.playing:
 			walk_sound.play()
 		
-		# Adjust playback speed based on movement speed
+		# Adjust playback speed based on movement speed and sprint state
 		var speed_ratio = clamp(speed / max_walk_speed, 1.0, 5.5)  # Limits speed variation
-		walk_sound.pitch_scale = speed_ratio  # Adjust pitch for faster/slower walking
+		
+		# Double the pitch when sprinting (2x speed)
+		if is_sprinting:
+			walk_sound.pitch_scale = speed_ratio * 1.25
+		else:
+			walk_sound.pitch_scale = speed_ratio
 	else:
 		walk_sound.stop()
 

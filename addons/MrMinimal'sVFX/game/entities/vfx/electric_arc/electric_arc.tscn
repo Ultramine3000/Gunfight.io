@@ -1,11 +1,11 @@
 [gd_scene load_steps=5 format=3 uid="uid://b44xkotxkurrs"]
 
-[ext_resource type="Texture2D" uid="uid://b7svy1a2h8rps" path="res://MrMinimal'sVFX/addons/kenney-particles/textures/spark_05.png" id="1_c4kst"]
-[ext_resource type="Script" uid="uid://c4iile6wsawns" path="res://MrMinimal'sVFX/game/entities/vfx/electric_arc/electric_arc.gd" id="2_dd4k6"]
+[ext_resource type="Texture2D" uid="uid://b7svy1a2h8rps" path="res://addons/MrMinimal'sVFX/addons/kenney-particles/textures/spark_05.png" id="1_c4kst"]
+[ext_resource type="Script" uid="uid://c4iile6wsawns" path="res://addons/MrMinimal'sVFX/game/entities/vfx/electric_arc/electric_arc.gd" id="2_dd4k6"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_2j6ng"]
 transparency = 2
-alpha_scissor_threshold = 0.770832
+alpha_scissor_threshold = 0.1
 alpha_antialiasing_mode = 0
 blend_mode = 1
 cull_mode = 2
@@ -15,7 +15,6 @@ albedo_texture = ExtResource("1_c4kst")
 emission_enabled = true
 emission = Color(0.53, 0.765, 1, 1)
 emission_energy_multiplier = 16.0
-uv1_offset = Vector3(0, 0.187191, 0)
 disable_receive_shadows = true
 
 [sub_resource type="QuadMesh" id="QuadMesh_f0iag"]
@@ -25,8 +24,7 @@ material = SubResource("StandardMaterial3D_2j6ng")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.344253, 1.29509)
 
 [node name="Mesh" type="MeshInstance3D" parent="."]
-transform = Transform3D(-4.37115e-08, -0.999997, 0, -0.982531, 4.29475e-08, -0.186114, 0.186114, -8.13528e-09, -0.982528, 0, 0, 0)
-visible = false
+transform = Transform3D(-4.37115e-08, -0.999997, 0, 1, -4.37113e-08, 0, 0, 0, 1, 0, 0, 0)
 mesh = SubResource("QuadMesh_f0iag")
 skeleton = NodePath("../..")
 script = ExtResource("2_dd4k6")
@@ -34,5 +32,5 @@ script = ExtResource("2_dd4k6")
 [node name="OmniLight3D" type="OmniLight3D" parent="Mesh"]
 transform = Transform3D(-0.936974, -8.46681e-08, 0.3494, -8.46679e-08, 1, 1.52727e-08, -0.3494, -1.52728e-08, -0.936974, 0, 0, 0)
 light_color = Color(0.62, 0.772, 1, 1)
-light_energy = 3.0
+light_energy = 0.538
 omni_range = 1.36356

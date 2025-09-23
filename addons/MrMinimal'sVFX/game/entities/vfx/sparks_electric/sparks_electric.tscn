@@ -1,6 +1,6 @@
 [gd_scene load_steps=7 format=3 uid="uid://fqyfcgi5ndu6"]
 
-[ext_resource type="Texture2D" uid="uid://clhbx0gvncq2y" path="res://MrMinimal'sVFX/addons/kenney-particles/textures/trace_01.png" id="1_yvtmn"]
+[ext_resource type="Texture2D" uid="uid://clhbx0gvncq2y" path="res://addons/MrMinimal'sVFX/addons/kenney-particles/textures/trace_01.png" id="1_yvtmn"]
 
 [sub_resource type="Curve" id="Curve_icuf3"]
 _data = [Vector2(0, 0.181335), 0.0, 0.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
@@ -11,7 +11,7 @@ curve = SubResource("Curve_icuf3")
 
 [sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_dnugg"]
 velocity_pivot = Vector3(1, 0, 0)
-spread = 10.0
+spread = 22.857
 initial_velocity_min = 4.0
 initial_velocity_max = 4.0
 scale_over_velocity_curve = SubResource("CurveTexture_dlna4")
@@ -22,25 +22,24 @@ collision_use_scale = true
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ylrsi"]
 transparency = 1
-blend_mode = 1
 specular_mode = 2
 disable_ambient_light = true
 albedo_texture = ExtResource("1_yvtmn")
 emission_enabled = true
-emission = Color(0.46, 0.487, 1, 1)
-emission_energy_multiplier = 16.0
+emission = Color(0.645612, 0.81378, 1, 1)
+emission_energy_multiplier = 0.77
 disable_receive_shadows = true
 
 [sub_resource type="QuadMesh" id="QuadMesh_0u0tx"]
 material = SubResource("StandardMaterial3D_ylrsi")
-size = Vector2(0.2, 0.2)
+size = Vector2(0.5, 0.5)
 
 [node name="SparksElectric" type="GPUParticles3D"]
-transform = Transform3D(0.468932, -0.883234, 0, 0.883234, 0.468932, 0, 0, 0, 1, -0.121065, 0.279163, 0.295668)
+transform = Transform3D(0.65723, 0.753689, 0, -0.753689, 0.65723, 0, 0, 0, 1, -0.121065, 0.279163, 0.295668)
 cast_shadow = 0
 gi_mode = 0
-amount = 32
-lifetime = 2.0
+amount = 16
+lifetime = 3.52
 explosiveness = 1.0
 visibility_aabb = AABB(-1, -1.25876, -1.24242, 4.99604, 2.50718, 2.50069)
 transform_align = 3
