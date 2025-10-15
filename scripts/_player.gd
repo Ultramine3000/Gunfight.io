@@ -906,37 +906,46 @@ func activate_muzzle_flash():
 	# Activate muzzle flash on the weapon (now under LVA4_Armature)
 	if current_arm_rig.has_node("LVA4_Armature/muzzle_flash"):
 		var flash = current_arm_rig.get_node("LVA4_Armature/muzzle_flash")
-		if flash.has_node("sprite"):
-			var sprite = flash.get_node("sprite")
-			sprite.visible = true
-			# Random Z rotation for variation (in radians)
-			sprite.rotation.z = randf() * TAU
+		
+		# Restart all particle emitters under muzzle_flash
+		for child in flash.get_children():
+			if child is GPUParticles3D:
+				child.restart()
+			elif child is GPUParticles2D:
+				child.restart()
+		
+		# Activate omni light
 		if flash.has_node("omni_light"):
-			flash.get_node("omni_light").visible = true
+			var light = flash.get_node("omni_light")
+			light.visible = true
 
 	# Activate muzzle flash on the player rig using the exported node
 	if has_node(player_muzzle_flash):
 		var player_flash = get_node(player_muzzle_flash)
-		if player_flash.has_node("sprite"):
-			player_flash.get_node("sprite").visible = true
+		
+		# Restart all particle emitters under player muzzle_flash
+		for child in player_flash.get_children():
+			if child is GPUParticles3D:
+				child.restart()
+			elif child is GPUParticles2D:
+				child.restart()
+		
+		# Activate omni light
 		if player_flash.has_node("omni_light"):
-			player_flash.get_node("omni_light").visible = true
+			var light = player_flash.get_node("omni_light")
+			light.visible = true
 
 	await get_tree().create_timer(0.1).timeout
 
-	# Deactivate muzzle flash on the weapon (now under LVA4_Armature)
+	# Deactivate omni light on the weapon
 	if current_arm_rig.has_node("LVA4_Armature/muzzle_flash"):
 		var flash = current_arm_rig.get_node("LVA4_Armature/muzzle_flash")
-		if flash.has_node("sprite"):
-			flash.get_node("sprite").visible = false
 		if flash.has_node("omni_light"):
 			flash.get_node("omni_light").visible = false
 
-	# Deactivate muzzle flash on the player rig using the exported node
+	# Deactivate omni light on the player rig
 	if has_node(player_muzzle_flash):
 		var player_flash = get_node(player_muzzle_flash)
-		if player_flash.has_node("sprite"):
-			player_flash.get_node("sprite").visible = false
 		if player_flash.has_node("omni_light"):
 			player_flash.get_node("omni_light").visible = false
 

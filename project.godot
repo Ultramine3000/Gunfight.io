@@ -10,7 +10,7 @@ config_version=5
 
 [application]
 
-config/name="Fragg.it"
+config/name="Warpigs"
 run/main_scene="uid://bljkplcgy1ue1"
 config/features=PackedStringArray("4.5", "Forward Plus")
 config/icon="res://icon.svg"
