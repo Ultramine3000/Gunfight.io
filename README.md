@@ -49,4 +49,6 @@ Programming & Design Contributors
 
 - [Mr. Minimal's VFX](https://sketchfab.com/3d-models/showcase-pedestral-1cbd0a3615304b3d91265e1886c71fae)
 
-- [Blood](https://github.com/Alenvei/GODOT4-Blood-splatter-Tutorial)
+- [BloodVFX](https://github.com/Alenvei/GODOT4-Blood-splatter-Tutorial)
+
+- [MuzzleVFX](https://www.gabrielaguiarprod.com/product-page/godot-vfx-muzzle-flash-effect)
