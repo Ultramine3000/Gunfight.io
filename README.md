@@ -1,6 +1,6 @@
-# Gunfight.io
+# Warpigs.gg
 
-Gunfight.io is a Godot FPS game, completely open source.
+WArpigs.gg is a Godot FPS game, completely open source.
 
 <a href="https://ibb.co/PGd10fCL"><img src="https://i.ibb.co/GQqCNbP6/Screenshot-2025-04-08-142206.png" alt="Screenshot-2025-04-08-142206" border="0"></a>
 
@@ -29,7 +29,7 @@ Gunfight.io is a Godot FPS game, completely open source.
 
 ## Credits
 
-Gunfight.io is a collaborative project developed with the support of an open-source community. Huge thanks to everyone who contributed time, creativity, and technical skill to bring this project to life!
+Warpigs.gg is a collaborative project developed with the support of an open-source community. Huge thanks to everyone who contributed time, creativity, and technical skill to bring this project to life!
 
 Project Lead
 - Jake Woods – Project founder, lead developer, game designer
