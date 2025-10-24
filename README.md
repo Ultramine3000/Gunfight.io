@@ -1,6 +1,6 @@
 # Warpigs.gg
 
-WArpigs.gg is a Godot FPS game, completely open source.
+Warpigs.gg is a Godot FPS game, completely open source.
 
 <a href="https://ibb.co/PGd10fCL"><img src="https://i.ibb.co/GQqCNbP6/Screenshot-2025-04-08-142206.png" alt="Screenshot-2025-04-08-142206" border="0"></a>
 
