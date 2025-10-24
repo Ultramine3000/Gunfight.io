@@ -8,12 +8,12 @@ point_count = 2
 curve = SubResource("Curve_yt6k8")
 
 [resource]
-spread = 35.0
-initial_velocity_min = 4.0
-initial_velocity_max = 6.0
-linear_accel_min = 4.0
-linear_accel_max = 4.0
-scale_max = 3.0
+spread = 20.0
+initial_velocity_min = 0.19999999
+initial_velocity_max = 0.79999995
+linear_accel_min = 0.49999776
+linear_accel_max = 0.99999774
+scale_min = 0.5
 scale_curve = SubResource("CurveTexture_4r8wd")
 collision_mode = 2
 sub_emitter_mode = 3

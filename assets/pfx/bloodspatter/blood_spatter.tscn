@@ -5,12 +5,13 @@
 [ext_resource type="Script" uid="uid://bklebn1o6yosg" path="res://scripts/emitter_on_instance.gd" id="2_blbks"]
 [ext_resource type="Shader" uid="uid://i4530fmjfaxo" path="res://assets/pfx/bloodspatter/blood.tres" id="3_x8utw"]
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_prs26"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_4vhp3"]
 render_priority = 0
 shader = ExtResource("3_x8utw")
 shader_parameter/ColorParameter = Color(1, 0, 0.071664, 1)
 
 [sub_resource type="QuadMesh" id="QuadMesh_q885a"]
+material = SubResource("ShaderMaterial_4vhp3")
 size = Vector2(0.18, 0.18)
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_6sxle"]
@@ -37,18 +38,19 @@ orientation = 1
 [node name="BloodSpatter" type="Node3D"]
 
 [node name="blood" type="GPUParticles3D" parent="."]
-transform = Transform3D(-0.0901981, 0, 0.995924, 0, 1, 0, -0.995924, 0, -0.0901981, 0, 0.00790358, 0)
-material_override = SubResource("ShaderMaterial_prs26")
+transform = Transform3D(-0.090198115, 0, 0.9959238, 0, 1, 0, -0.9959238, 0, -0.090198115, 0, 0.00790358, 0)
 emitting = false
 sub_emitter = NodePath("../blood_spot")
 lifetime = 0.5
 one_shot = true
+local_coords = true
 process_material = ExtResource("2_4vhp3")
 draw_pass_1 = SubResource("QuadMesh_q885a")
 script = ExtResource("2_blbks")
 
 [node name="blood_spot" type="GPUParticles3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.623092, 0)
+visible = false
 material_override = SubResource("ShaderMaterial_6sxle")
 cast_shadow = 0
 emitting = false

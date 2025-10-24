@@ -293,54 +293,47 @@ func _camera_process(delta):
 	# Clamp vertical look
 	camera.rotation.x = clamp(camera.rotation.x, deg_to_rad(-40), deg_to_rad(60))
 
+var gravity_multiplier = 0.27  # Adjust this - lower = weaker gravity (0.5 = half strength, 0.1 = very weak)
+
 func _movement_process(delta):
 	var input_dir = Input.get_vector(
 		"p"+str(ctrl_port)+"_walk_lf", "p"+str(ctrl_port)+"_walk_rt",
 		"p"+str(ctrl_port)+"_walk_fw", "p"+str(ctrl_port)+"_walk_bk")
 	if health <= 0:
 		input_dir = Vector2.ZERO
-
 	var target_direction = (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
-
 	# Inertial smoothing
 	var acceleration = accel * delta
 	var deceleration = decel * delta
 	var friction = deceleration if is_on_floor() else deceleration * 0.5
-
 	if input_dir != Vector2.ZERO:
 		direction = direction.lerp(target_direction, acceleration)
 	else:
 		direction = direction.lerp(Vector3.ZERO, friction)
-
 	if direction.length() > 1.0:
 		direction = direction.normalized()
-
 	# Determine max speed based on sprint state
 	var true_max_speed = max_sprint_speed if is_sprinting else max_walk_speed
 	
 	# Reduce movement speed while aiming
 	if is_aiming:
 		true_max_speed *= 0.6  # 60% speed while aiming
-
 	if input_dir != Vector2.ZERO:
 		speed = move_toward(speed, true_max_speed, accel * delta)
 	else:
 		speed = move_toward(speed, 0.0, decel * delta)
-
 	var gravity := velocity.y
-	var world_gravity = ProjectSettings.get_setting("physics/3d/default_gravity") * delta
+	var world_gravity = ProjectSettings.get_setting("physics/3d/default_gravity") * delta * gravity_multiplier  # MODIFIED THIS LINE
 	if not is_on_floor():
 		gravity -= world_gravity
 	else:
 		gravity = GRAVITY_COLLIDE
-
 	velocity = direction * speed
 	if not jump_queued:
 		velocity.y = gravity
 	else:
 		velocity.y = jump_force
 		jump_queued = false
-
 	move_and_slide()
 
 func _anim_arms_process():

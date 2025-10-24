@@ -69,7 +69,7 @@ input_name = "instance_id"
 
 [resource]
 code = "shader_type spatial;
-render_mode blend_mix, depth_draw_opaque, depth_test_default, cull_back, diffuse_lambert, specular_schlick_ggx;
+render_mode blend_mix, depth_draw_opaque, depth_test_default, cull_back, diffuse_toon, specular_toon;
 
 uniform vec4 ColorParameter : source_color = vec4(1.000000, 0.000000, 0.071664, 1.000000);
 uniform sampler2D tex_frg_2;
@@ -192,12 +192,14 @@ void fragment() {
 
 }
 "
+modes/diffuse = 3
+modes/specular = 1
 nodes/vertex/2/node = SubResource("VisualShaderNodeBillboard_3w3hf")
 nodes/vertex/2/position = Vector2(-180, 600)
 nodes/vertex/3/node = SubResource("VisualShaderNodeInput_tmsm5")
 nodes/vertex/3/position = Vector2(-440, 260)
 nodes/vertex/4/node = SubResource("VisualShaderNodeVectorCompose_7tgk8")
-nodes/vertex/4/position = Vector2(40, 260)
+nodes/vertex/4/position = Vector2(-100, 240)
 nodes/vertex/connections = PackedInt32Array(2, 0, 0, 10, 3, 0, 4, 0, 4, 0, 0, 6)
 nodes/fragment/0/position = Vector2(1580, 160)
 nodes/fragment/2/node = SubResource("VisualShaderNodeTexture_ppk08")

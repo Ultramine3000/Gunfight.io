@@ -37,6 +37,7 @@ Project Lead
 Programming & Design Contributors
 - [Michelle Lehto – Programmer](https://www.michellelehto-gamedesign.com/)
 - [Richasey Sok – Animator](https://www.artstation.com/richmemes/profile)
+- [YANYSLAV BUKOVETSKYI - Networked Multiplayer Support Programmer]
 
 3rd Party Assets
 
@@ -49,6 +50,4 @@ Programming & Design Contributors
 
 - [Mr. Minimal's VFX](https://sketchfab.com/3d-models/showcase-pedestral-1cbd0a3615304b3d91265e1886c71fae)
 
-- [BloodVFX](https://github.com/Alenvei/GODOT4-Blood-splatter-Tutorial)
-
-- [MuzzleVFX](https://www.gabrielaguiarprod.com/product-page/godot-vfx-muzzle-flash-effect)
+- [Blood](https://github.com/Alenvei/GODOT4-Blood-splatter-Tutorial)
