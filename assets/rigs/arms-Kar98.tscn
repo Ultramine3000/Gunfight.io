@@ -6264,7 +6264,7 @@ idle_position = Vector3(0, -0.086, -0.051)
 ads_position = Vector3(-0.103, -0.071, 0.335)
 animation_duration = 0.1
 is_sniper = true
-sprint_position = Vector3(0, 0, 0)
+sprint_position = Vector3(-0.035, 0, 0)
 sprint_rotation = Vector3(-10, 7, 15)
 
 [node name="muzzle_flash" type="Node3D" parent="LVA4_Armature"]
