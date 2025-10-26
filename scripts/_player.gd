@@ -365,6 +365,10 @@ func _anim_body_process(player_id):
 		"RifleMoveBack": 0.9, "RifleJump": 1.0, "RifleSprint": 1.2  # Keep sprint animation for body
 	}
 
+	# Don't update body animations while dead
+	if dead:
+		return
+
 	# Determine the correct weapon prefix
 	var weapon_prefix := ""
 	match current_weapon.weapon_type:
@@ -725,22 +729,20 @@ func melee():
 
 @rpc("any_peer", "call_local", "reliable")
 func take_damage(damage: int, type: String, enemy_source_path: NodePath, hit_position: Vector3):
-	if health <= 0 and damage <= 0:
-		return  # Prevent taking further damage if already dead
+	# Prevent damage if already dead
+	if dead or health <= 0:
+		return
 	
 	var enemy_source := get_node_or_null(enemy_source_path)
 	if enemy_source == null:
 		return
-
 	if enemy_source and enemy_source.has_method("get_multiplayer_authority"):
 		if enemy_source.get_multiplayer_authority() != multiplayer.get_remote_sender_id():
 			return
-
 	health -= damage
 	hud.hp_target = health
 	hud.flash_damage_indicator()
 	sync_health.rpc(health)
-
 	# Play damage sound with modulation
 	if has_node("take_damage_sound"):
 		var sound = $take_damage_sound.duplicate()
@@ -748,9 +750,7 @@ func take_damage(damage: int, type: String, enemy_source_path: NodePath, hit_pos
 		sound.pitch_scale = 1.0 + randf_range(-0.1, 0.1)
 		sound.play()
 		sound.finished.connect(sound.queue_free)
-
 	_camera_flinch()
-
 	# Spawn scene at precise hit location facing toward enemy_source
 	var hit_indicator_scene = preload("res://assets/pfx/bloodspatter/blood_spatter.tscn")
 	var hit_indicator = hit_indicator_scene.instantiate()
@@ -759,10 +759,8 @@ func take_damage(damage: int, type: String, enemy_source_path: NodePath, hit_pos
 	var direction_to_enemy = (enemy_source.global_position - hit_position).normalized()
 	hit_indicator.global_position = hit_position
 	hit_indicator.look_at(hit_position + direction_to_enemy, Vector3.UP)
-
 	if health <= 0:
 		die.rpc(0, enemy_source_path)
-
 	match type:
 		"head":
 			print("Headshot!")
@@ -800,7 +798,7 @@ func die(_func_stage := 0, enemy_source_path := ""):
 			reloading = false
 			inspecting = false
 			weapon_switching = false
-			is_sprinting = false  # Stop sprinting when dying
+			is_sprinting = false
 			if is_aiming:
 				stop_ads()
 
@@ -808,6 +806,10 @@ func die(_func_stage := 0, enemy_source_path := ""):
 			if current_arm_rig and current_arm_rig.has_node("LVA4_Armature"):
 				current_arm_rig.get_node("LVA4_Armature").set_p0_ads(false)
 
+			# Stop any currently playing animations
+			body_anim_oneshot.stop()
+			body_anim_continue.stop()
+			
 			# Play death animation
 			var anim_name = ""
 			match current_weapon.weapon_type:
@@ -824,27 +826,37 @@ func die(_func_stage := 0, enemy_source_path := ""):
 			var enemy_source := get_node_or_null(enemy_source_path)
 			if enemy_source is Player:
 				enemy_that_killed = enemy_source
-				enemy_source.score_point(1)  # Reward the killer
+				enemy_source.score_point(1)
 			else:
 				enemy_that_killed = null
-				score_point(-1)  # Only subtract a point if not killed by a Player
+				score_point(-1)
 
 		1:
-			die(2)
-
-		2:
-			# Respawn
+			# Wait for death animation
+			await get_tree().create_timer(3.0).timeout
+			
+			# Reset camera animation
+			$die_anim.stop()
+			$die_anim.play("RESET")
+			
+			# Respawn FIRST while still dead
 			health = max_health
 			hud.hp_target = max_health
-			Game.world.respawn(self)
-			dead = false
-			collision_layer = 1  # Player
-			collision_mask = 2 | 3  # Terrain + bullets
+			collision_layer = 1
+			collision_mask = 2 | 3
 			enemy_that_killed = null
-			$die_anim.play("RESET")
+			
+			Game.world.respawn(self)
+			
+			# Wait one frame to ensure position is set
+			await get_tree().process_frame
+			
+			# THEN set dead to false so animations can resume
+			dead = false
 
 func _on_death_anim_done(anim:StringName, _func_stage):
 	if not "Death" in anim: return
+	if not dead: return  # Don't trigger if we already respawned
 	die(_func_stage)
 
 func score_point(score_change):
