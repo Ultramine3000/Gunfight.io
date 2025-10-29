@@ -4,7 +4,7 @@
 [ext_resource type="PackedScene" uid="uid://uicruiqn58in" path="res://assets/bullets/bullet_ray_small.tscn" id="1_al20j"]
 [ext_resource type="Texture2D" uid="uid://d1u0joob3vcmp" path="res://assets/textures/bullet_icons/ak47s_bullet.png" id="1_mqnaw"]
 [ext_resource type="AudioStream" uid="uid://dp2yyjk2nydxi" path="res://assets/sfx/weapons/aks74/aks_draw.wav" id="3_gxqmc"]
-[ext_resource type="AudioStream" uid="uid://dhc3flvu84m0k" path="res://assets/sfx/weapons/aks74/ak_shot.wav" id="3_jght4"]
+[ext_resource type="AudioStream" uid="uid://c0dtqapj7gald" path="res://assets/sfx/weapons/aks74/aks_shot.mp3" id="4_gxqmc"]
 [ext_resource type="AudioStream" uid="uid://dwgrcg560r3ju" path="res://assets/sfx/weapons/aks74/ak_reload.wav" id="4_n03on"]
 [ext_resource type="AudioStream" uid="uid://b3pqla47uwafr" path="res://assets/sfx/weapons/tarusjudge/revovler_holster.wav" id="5_bbpjy"]
 
@@ -19,7 +19,7 @@ reload_time = 4.0
 max_ammo = 31
 recoil_strength = Vector2(0.75, 0.25)
 recoil_recovery_speed = 15.0
-fire_sound = ExtResource("3_jght4")
+fire_sound = ExtResource("4_gxqmc")
 reload_sound = ExtResource("4_n03on")
 draw_sound = ExtResource("3_gxqmc")
 holster_sound = ExtResource("5_bbpjy")

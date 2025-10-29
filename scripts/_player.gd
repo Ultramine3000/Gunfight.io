@@ -128,7 +128,7 @@ func _ready() -> void:
 	camera.cull_mask = 1
 	camera.set_cull_mask_value(view_layer, true)
 	_set_arm_vis_recursive(arms_rig)
-	_set_body_vis_recursive(body_rig)
+	_set_body_vis_recursive($body)  # Start from $body, not body_rig
 	
 	# Initialize ADS FOV values
 	default_fov = camera.fov
@@ -890,13 +890,29 @@ func _set_arm_vis_recursive(parent):
 		for child in parent.get_children():
 			_set_arm_vis_recursive(child)
 
-func _set_body_vis_recursive(parent):
+func _set_body_vis_recursive(parent, is_body_node = false):
+	# Check if this is the 'body' node - once we find it, all children inherit this flag
+	if parent.name == "body":
+		is_body_node = true
+	
 	if parent is VisualInstance3D:
 		parent.layers = 30
 		parent.set_layer_mask_value(view_layer, false)
+		
+		# For body node and ALL its descendants: completely disable culling
+		if is_body_node and parent is GeometryInstance3D:
+			# Disable visibility range culling (distance-based)
+			parent.visibility_range_end = 0.0  # 0 = infinite, never cull by distance
+			parent.visibility_range_end_margin = 0.0
+			# Disable occlusion culling
+			parent.ignore_occlusion_culling = true
+			# Set extra cull margin to prevent frustum culling issues
+			parent.extra_cull_margin = 16384.0  # Very large margin to prevent any culling
+	
+	# Recursively apply to all children
 	if parent.get_child_count() > 0:
 		for child in parent.get_children():
-			_set_body_vis_recursive(child)
+			_set_body_vis_recursive(child, is_body_node)
 
 @export var player_muzzle_flash: NodePath  # Export variable for player's muzzle flash node
 
