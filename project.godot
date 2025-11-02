@@ -10,7 +10,7 @@ config_version=5
 
 [application]
 
-config/name="Warpigs"
+config/name="Gruntz.gg"
 run/main_scene="uid://bljkplcgy1ue1"
 config/features=PackedStringArray("4.5", "Forward Plus")
 config/icon="res://icon.svg"
@@ -29,8 +29,8 @@ Matchmaking="*res://scripts/__Matchmaking.gd"
 window/size/viewport_width=1920
 window/size/viewport_height=1080
 window/stretch/mode="canvas_items"
-window/quality/screen_space_aa=1
 window/quality/msaa_3d=3
+window/quality/screen_space_aa=1
 
 [global_group]
 

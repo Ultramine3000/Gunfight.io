@@ -1,0 +1,265 @@
+[gd_scene load_steps=17 format=3 uid="uid://bnjydn82lcvtv"]
+
+[ext_resource type="Script" uid="uid://cx2waf81771er" path="res://scripts/_hud.gd" id="1_xh14w"]
+[ext_resource type="Texture2D" uid="uid://dvv4253o8mga7" path="res://assets/textures/ui/crosshair.png" id="2_nbqjr"]
+[ext_resource type="Texture2D" uid="uid://d15tlq33gen8i" path="res://assets/textures/ui/health_icon.png" id="3_vv0im"]
+[ext_resource type="Texture2D" uid="uid://drj53crcwcvq3" path="res://assets/textures/ui/blood_overlay.png" id="4_1corf"]
+[ext_resource type="Texture2D" uid="uid://ggsmtdl0lfq1" path="res://assets/textures/ui/vignette.png" id="5_lbu8c"]
+[ext_resource type="Texture2D" uid="uid://4jb3av6g8r1y" path="res://assets/textures/ui/victory.webp" id="6_eecjd"]
+[ext_resource type="Texture2D" uid="uid://dcw54ph03stcp" path="res://assets/textures/ui/defeat.png" id="7_glp1u"]
+[ext_resource type="AudioStream" uid="uid://p13voft6ohx5" path="res://assets/sfx/ui/have_mercy.mp3" id="8_piyoa"]
+[ext_resource type="Texture2D" uid="uid://depoaeh78y2lw" path="res://assets/rigs/kar98_arms/scope.png" id="9_khpnb"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bw7k3"]
+bg_color = Color(0, 0, 0, 0)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(0, 0, 0, 1)
+border_blend = true
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_qkite"]
+bg_color = Color(0, 0, 0, 1)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(0.486238, 0.603536, 0.521474, 1)
+border_blend = true
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+expand_margin_left = 4.0
+expand_margin_right = 4.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_lfghk"]
+bg_color = Color(0.141176, 0.827451, 0, 1)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(0.486275, 0.603922, 0.521569, 0)
+border_blend = true
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+expand_margin_left = 4.0
+expand_margin_right = 4.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_mscnb"]
+border_width_left = 4
+border_color = Color(1, 1, 1, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_eclha"]
+bg_color = Color(0.238744, 0.238744, 0.238744, 1)
+border_width_left = 8
+border_width_top = 8
+border_width_right = 8
+border_width_bottom = 8
+border_color = Color(0.106237, 0.106237, 0.106236, 1)
+border_blend = true
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+expand_margin_left = 16.0
+expand_margin_top = 16.0
+expand_margin_right = 16.0
+expand_margin_bottom = 16.0
+
+[sub_resource type="Gradient" id="Gradient_wwirt"]
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_f4txf"]
+gradient = SubResource("Gradient_wwirt")
+fill_to = Vector2(0, 0)
+
+[node name="hud" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_bottom = -450.0
+grow_horizontal = 2
+grow_vertical = 2
+scale = Vector2(1.2, 1.2)
+size_flags_horizontal = 4
+script = ExtResource("1_xh14w")
+metadata/_edit_use_anchors_ = true
+
+[node name="border" type="Panel" parent="."]
+layout_mode = 0
+offset_right = 1600.0
+offset_bottom = 450.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_bw7k3")
+
+[node name="reticle" type="TextureRect" parent="."]
+visible = false
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 0
+offset_left = 784.0
+offset_top = 209.0
+offset_right = 816.0
+offset_bottom = 241.0
+texture = ExtResource("2_nbqjr")
+
+[node name="health" type="Control" parent="."]
+anchors_preset = 0
+offset_left = 1285.0
+offset_top = 405.0
+offset_right = 1589.0
+offset_bottom = 437.0
+
+[node name="icon" type="TextureRect" parent="health"]
+layout_mode = 0
+offset_right = 32.0
+offset_bottom = 32.0
+texture = ExtResource("3_vv0im")
+
+[node name="bar" type="ProgressBar" parent="health"]
+layout_mode = 0
+offset_left = 40.0
+offset_right = 296.0
+offset_bottom = 32.0
+theme_override_styles/background = SubResource("StyleBoxFlat_qkite")
+theme_override_styles/fill = SubResource("StyleBoxFlat_lfghk")
+value = 100.0
+show_percentage = false
+
+[node name="ammo" type="Control" parent="."]
+anchors_preset = 0
+offset_left = 16.0
+offset_top = 398.0
+offset_right = 411.0
+offset_bottom = 453.0
+
+[node name="extra" type="Label" parent="ammo"]
+layout_mode = 0
+offset_right = 64.0
+offset_bottom = 39.0
+theme_override_font_sizes/font_size = 28
+text = "9999"
+vertical_alignment = 1
+
+[node name="splitter" type="VSeparator" parent="ammo"]
+layout_mode = 0
+offset_left = 64.0
+offset_right = 96.0
+offset_bottom = 40.0
+theme_override_styles/separator = SubResource("StyleBoxFlat_mscnb")
+
+[node name="counter" type="HBoxContainer" parent="ammo"]
+layout_mode = 0
+offset_left = 96.0
+offset_right = 589.0
+offset_bottom = 40.0
+
+[node name="_template" type="TextureRect" parent="ammo/counter"]
+layout_mode = 2
+
+[node name="points" type="Label" parent="."]
+layout_mode = 0
+offset_right = 123.0
+offset_bottom = 88.0
+theme_override_font_sizes/font_size = 64
+text = "0
+"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="damage_indicator" type="TextureRect" parent="."]
+layout_mode = 0
+offset_right = 1600.0
+offset_bottom = 450.0
+texture = ExtResource("4_1corf")
+expand_mode = 1
+
+[node name="shoot_indicator" type="TextureRect" parent="."]
+layout_mode = 0
+offset_right = 1600.0
+offset_bottom = 450.0
+texture = ExtResource("5_lbu8c")
+expand_mode = 1
+
+[node name="player_label" type="Label" parent="."]
+layout_mode = 0
+offset_left = 1513.0
+offset_top = 368.0
+offset_right = 1578.0
+offset_bottom = 411.0
+text = "Player: ?"
+
+[node name="victory" type="Sprite2D" parent="."]
+visible = false
+position = Vector2(779, 226)
+texture = ExtResource("6_eecjd")
+
+[node name="defeat" type="Sprite2D" parent="."]
+visible = false
+position = Vector2(768, 225)
+texture = ExtResource("7_glp1u")
+
+[node name="victory_audio" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("8_piyoa")
+volume_db = 4.147
+pitch_scale = 1.02
+
+[node name="Options" type="Control" parent="."]
+visible = false
+anchors_preset = 0
+offset_left = 574.0
+offset_top = 83.0
+offset_right = 614.0
+offset_bottom = 123.0
+
+[node name="bg_panel" type="Panel" parent="Options"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -81.0
+offset_top = 8.0
+offset_right = 514.0
+offset_bottom = 171.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_eclha")
+
+[node name="SensitivitySlider" type="HSlider" parent="Options"]
+layout_mode = 0
+offset_left = 3.0
+offset_top = 50.0
+offset_right = 463.0
+offset_bottom = 122.0
+max_value = 10.0
+tick_count = 10
+ticks_on_borders = true
+
+[node name="Label" type="Label" parent="Options/SensitivitySlider"]
+layout_mode = 0
+offset_left = 168.0
+offset_top = -17.0
+offset_right = 289.0
+offset_bottom = 6.0
+text = "Look Sensitivity"
+
+[node name="scope" type="Sprite2D" parent="."]
+visible = false
+z_index = -2
+position = Vector2(799.167, 226.667)
+scale = Vector2(0.435357, 0.416281)
+texture = ExtResource("9_khpnb")
+
+[node name="border" type="Sprite2D" parent="scope"]
+position = Vector2(1274.53, 4.57764e-05)
+scale = Vector2(17.7746, 16.8281)
+texture = SubResource("GradientTexture2D_f4txf")
+
+[node name="border2" type="Sprite2D" parent="scope"]
+position = Vector2(-1377.24, -4.50413)
+scale = Vector2(14.3852, 17.0314)
+texture = SubResource("GradientTexture2D_f4txf")

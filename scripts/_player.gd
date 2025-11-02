@@ -2,7 +2,9 @@ extends CharacterBody3D
 class_name Player
 
 ## NODES ##
-@onready var hud := $hud
+var hud: Control  # Will be set by _setup_hud()  # This will be replaced based on mode
+@export var hud_splitscreen: PackedScene  # Assign hud.tscn in inspector
+@export var hud_multiplayer: PackedScene  # Assign hud_multiplayer.tscn in inspector
 @onready var camera := $camera
 @onready var arms_rig := $camera/arms
 @onready var body_rig := $body/body_rig
@@ -58,10 +60,11 @@ var target_look_input := Vector2.ZERO
 @export_range(0.0, 20.0) var accel := 0.0
 @export_range(0.0, 20.0) var decel := 0.0
 const GRAVITY_COLLIDE := -0.1
+var gravity_multiplier = 0.27  # Adjust this - lower = weaker gravity (0.5 = half strength, 0.1 = very weak)
 var direction : Vector3
 var speed := 0.0
 var animation_inputs: Dictionary[String, bool]
-var is_sprinting := false  # New sprint state
+@export var is_sprinting := false  # New sprint state
 
 ## JUMPING ##
 @export_category("Jumping")
@@ -114,21 +117,56 @@ var animation_blends = {
 }
 
 func _ready() -> void:
+	# Set multiplayer authority
 	if multiplayer.multiplayer_peer is not OfflineMultiplayerPeer:
 		set_multiplayer_authority(Multiplayer.player_ids[ctrl_port])
+		print("Player ctrl_port ", ctrl_port, " authority set to: ", get_multiplayer_authority())
+		print("Local multiplayer ID: ", multiplayer.get_unique_id())
+		print("Is authority: ", is_multiplayer_authority())
 	
-	view_layer = ctrl_port + 2
+	# Load appropriate HUD based on multiplayer mode
+	_setup_hud()
+	
+	# Determine view layer based on mode
+	if multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
+		# LOCAL MODE: Each player has unique view layer
+		view_layer = ctrl_port + 2
+	else:
+		# NETWORKED MODE: All players use layer 2
+		view_layer = 2
+	
+	print("Player ctrl_port ", ctrl_port, " using view_layer: ", view_layer)
 	
 	# Set player name in HUD
-	var player_name = "Player " + str(ctrl_port + 1)  # "Player 1" for ctrl_port 0, "Player 2" for ctrl_port 1
+	var player_name = "Player " + str(ctrl_port + 1)
 	if hud.has_node("player_label"):
 		hud.get_node("player_label").text = player_name
 	
-	# Determine view layers for models.
+	# Handle HUD visibility in networked mode
+	if multiplayer.multiplayer_peer is not OfflineMultiplayerPeer:
+		if not is_multiplayer_authority():
+			# Hide HUD for remote players
+			hud.hide()
+	
+	# Set up camera
 	camera.cull_mask = 1
 	camera.set_cull_mask_value(view_layer, true)
-	_set_arm_vis_recursive(arms_rig)
-	_set_body_vis_recursive($body)  # Start from $body, not body_rig
+	
+	# Configure visibility - SAME logic for both local and networked
+	if multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
+		# LOCAL MODE
+		_set_arm_vis_recursive(arms_rig)  # Arms visible only to own camera
+		_set_body_vis_recursive($body)     # Body hidden from own camera
+	else:
+		# NETWORKED MODE
+		if is_multiplayer_authority():
+			# LOCAL PLAYER: See own arms, hide own body
+			_set_arm_vis_recursive(arms_rig)  # Arms visible only to self
+			_set_body_vis_recursive($body)     # Body hidden from self
+		else:
+			# REMOTE PLAYER: Hide arms completely, show body
+			_hide_arms_completely(arms_rig)  # Completely hide remote arms
+			_set_body_vis_for_remote_player($body)  # Body visible to local player
 	
 	# Initialize ADS FOV values
 	default_fov = camera.fov
@@ -146,7 +184,7 @@ func _ready() -> void:
 		side_weapon.current_ammo = side_weapon.max_ammo
 	switch_weapon(true)
 	
-	# Initialise animation inputs (removed sprint entry)
+	# Initialise animation inputs
 	animation_inputs = {
 		"walk_fw": false,
 		"walk_bk": false,
@@ -162,8 +200,68 @@ func _ready() -> void:
 	hud.update_score()
 	body_anim_oneshot.animation_finished.connect(_on_death_anim_done.bind(1))
 	
-	if ctrl_port == 0:
-		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	# Mouse capture logic
+	if multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
+		if ctrl_port == 0:
+			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	else:
+		if is_multiplayer_authority():
+			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+
+func _setup_hud():
+	# Remove existing HUD if it exists
+	if has_node("hud"):
+		$hud.queue_free()
+	
+	# Load appropriate HUD based on multiplayer mode
+	var hud_scene: PackedScene
+	if multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
+		# Local split-screen mode
+		hud_scene = hud_splitscreen
+	else:
+		# Networked multiplayer mode
+		hud_scene = hud_multiplayer
+	
+	# Instance and add the HUD
+	if hud_scene:
+		hud = hud_scene.instantiate()
+		hud.name = "hud"
+		add_child(hud)
+	else:
+		print("Error: HUD scene not assigned!")
+
+func _hide_arms_completely(parent):
+	# Completely hide all arm rig nodes for remote players
+	if parent is VisualInstance3D:
+		parent.layers = 0  # Remove from all layers
+		parent.visible = false  # Also set visible to false
+	
+	# Recursively hide all children
+	if parent.get_child_count() > 0:
+		for child in parent.get_children():
+			_hide_arms_completely(child)
+
+func _set_body_vis_for_remote_player(parent, is_body_node = false):
+	# For remote players in networked mode, make their body visible to the local player
+	if parent.name == "body":
+		is_body_node = true
+	
+	if parent is VisualInstance3D:
+		# Make visible on layer 2 (the networked viewport layer)
+		parent.layers = 0
+		parent.set_layer_mask_value(2, true)  # Visible on layer 2
+		
+		# Disable culling for body nodes
+		if is_body_node and parent is GeometryInstance3D:
+			parent.visibility_range_end = 0.0
+			parent.visibility_range_end_margin = 0.0
+			parent.ignore_occlusion_culling = true
+			parent.extra_cull_margin = 16384.0
+	
+	# Recursively apply to all children
+	if parent.get_child_count() > 0:
+		for child in parent.get_children():
+			_set_body_vis_for_remote_player(child, is_body_node)
 
 func _physics_process(delta: float) -> void:
 	if is_multiplayer_authority():
@@ -184,31 +282,36 @@ func _physics_process(delta: float) -> void:
 func _control_process():
 	if health <= 0: return
 	
+	# For networked multiplayer, only respond to controller 0 if this is our authority
+	var controller_prefix = "p0"  # Always use controller 0 for networked
+	if multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
+		controller_prefix = "p" + str(ctrl_port)  # Use assigned controller for local
+	
 	# For one-off presses, like jumping or shooting.
-	if Input.is_action_just_pressed("p"+str(ctrl_port)+"_jump"):
+	if Input.is_action_just_pressed(controller_prefix + "_jump"):
 		jump()
 	
-	if Input.is_action_just_pressed("p"+str(ctrl_port)+"_switch_weapon"):
+	if Input.is_action_just_pressed(controller_prefix + "_switch_weapon"):
 		if not weapon_switching and switch_cooldown <= 0.0:  # Prevent rapid switching
 			switch_weapon.rpc()
 	
-	if Input.is_action_just_pressed("p"+str(ctrl_port)+"_inspect"):
+	if Input.is_action_just_pressed(controller_prefix + "_inspect"):
 		inspect_weapon.rpc()
 	
-	if Input.is_action_pressed("p"+str(ctrl_port)+"_shoot"):
+	if Input.is_action_pressed(controller_prefix + "_shoot"):
 		shoot.rpc()
 	
-	if Input.is_action_just_pressed("p"+str(ctrl_port)+"_reload"):
+	if Input.is_action_just_pressed(controller_prefix + "_reload"):
 		reload.rpc()
 	
-	# Handle sprint input
-	if Input.is_action_pressed("p"+str(ctrl_port)+"_sprint"):
+	# Handle sprint input - no RPC needed, MultiplayerSynchronizer handles it
+	if Input.is_action_pressed(controller_prefix + "_sprint"):
 		start_sprint()
 	else:
 		stop_sprint()
 	
 	# Handle ADS input - disable ADS while sprinting
-	if Input.is_action_pressed("p"+str(ctrl_port)+"_ads") and not is_sprinting:
+	if Input.is_action_pressed(controller_prefix + "_ads") and not is_sprinting:
 		if not is_aiming and not weapon_switching:  # Don't allow ADS during weapon switch
 			start_ads()
 	else:
@@ -221,7 +324,11 @@ func start_sprint():
 		return
 	
 	# Only sprint when moving forward
-	var moving_forward = Input.is_action_pressed("p"+str(ctrl_port)+"_walk_fw")
+	var controller_prefix = "p0"
+	if multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
+		controller_prefix = "p" + str(ctrl_port)
+	
+	var moving_forward = Input.is_action_pressed(controller_prefix + "_walk_fw")
 	if not moving_forward:
 		stop_sprint()
 		return
@@ -265,14 +372,26 @@ func _camera_process(delta):
 	if is_aiming:
 		sensitivity *= 0.5  # Reduce sensitivity while aiming for better precision
 
+	# Determine controller prefix based on multiplayer mode
+	var controller_prefix = "p0"  # Always use controller 0 for networked
+	if multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
+		controller_prefix = "p" + str(ctrl_port)
+
 	# Get controller input
 	var controller_input = Vector2(
-		-Input.get_axis("p"+str(ctrl_port)+"_cam_lf", "p"+str(ctrl_port)+"_cam_rt"),  # Inverted X for proper stick direction
-		Input.get_axis("p"+str(ctrl_port)+"_cam_dn", "p"+str(ctrl_port)+"_cam_up")
+		-Input.get_axis(controller_prefix + "_cam_lf", controller_prefix + "_cam_rt"),  # Inverted X for proper stick direction
+		Input.get_axis(controller_prefix + "_cam_dn", controller_prefix + "_cam_up")
 	)
 
-	# Combine mouse and controller input for Player 1
-	if ctrl_port == 0:
+	# For networked multiplayer, always use mouse for the authority player
+	# For local multiplayer, only player 0 gets mouse
+	var use_mouse = false
+	if multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
+		use_mouse = (ctrl_port == 0)
+	else:
+		use_mouse = is_multiplayer_authority()
+	
+	if use_mouse:
 		var mouse_motion = Input.get_last_mouse_velocity()
 		var mouse_input = Vector2(-mouse_motion.x, -mouse_motion.y) * sensitivity * 0.001
 		target_look_input = mouse_input + controller_input * sensitivity
@@ -293,12 +412,15 @@ func _camera_process(delta):
 	# Clamp vertical look
 	camera.rotation.x = clamp(camera.rotation.x, deg_to_rad(-40), deg_to_rad(60))
 
-var gravity_multiplier = 0.27  # Adjust this - lower = weaker gravity (0.5 = half strength, 0.1 = very weak)
-
 func _movement_process(delta):
+	# Determine controller prefix based on multiplayer mode
+	var controller_prefix = "p0"
+	if multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
+		controller_prefix = "p" + str(ctrl_port)
+	
 	var input_dir = Input.get_vector(
-		"p"+str(ctrl_port)+"_walk_lf", "p"+str(ctrl_port)+"_walk_rt",
-		"p"+str(ctrl_port)+"_walk_fw", "p"+str(ctrl_port)+"_walk_bk")
+		controller_prefix + "_walk_lf", controller_prefix + "_walk_rt",
+		controller_prefix + "_walk_fw", controller_prefix + "_walk_bk")
 	if health <= 0:
 		input_dir = Vector2.ZERO
 	var target_direction = (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
@@ -377,14 +499,19 @@ func _anim_body_process(player_id):
 		Weapon.WEAPON_TYPES.RIFLE:
 			weapon_prefix = "Rifle"
 
+	# Determine controller prefix based on multiplayer mode
+	var controller_prefix = "p0"
+	if multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
+		controller_prefix = "p%d" % player_id
+
 	# Map player inputs to animations (removed sprint from animation_inputs)
 	if is_multiplayer_authority():
 		animation_inputs = {
-			"walk_fw": Input.is_action_pressed("p%d_walk_fw" % player_id),
-			"walk_bk": Input.is_action_pressed("p%d_walk_bk" % player_id),
-			"walk_lf": Input.is_action_pressed("p%d_walk_lf" % player_id),
-			"walk_rt": Input.is_action_pressed("p%d_walk_rt" % player_id),
-			"jump": Input.is_action_pressed("p%d_jump" % player_id),
+			"walk_fw": Input.is_action_pressed(controller_prefix + "_walk_fw"),
+			"walk_bk": Input.is_action_pressed(controller_prefix + "_walk_bk"),
+			"walk_lf": Input.is_action_pressed(controller_prefix + "_walk_lf"),
+			"walk_rt": Input.is_action_pressed(controller_prefix + "_walk_rt"),
+			"jump": Input.is_action_pressed(controller_prefix + "_jump"),
 		}
 
 	# Handle jump
@@ -414,7 +541,7 @@ func _anim_body_process(player_id):
 
 	# Play the animation if it's different from the current one
 	if continue_player.current_animation != anim_to_play:
-		continue_player.play(anim_to_play, custom_blend, custom_speed)
+		continue_player.play(anim_to_play, custom_blend, custom_speed)		
 
 func jump():
 	if not is_on_floor():
@@ -470,10 +597,13 @@ func switch_weapon(update_only: bool = false) -> void:
 	# Hide all weapon rigs first.
 	for rig in arms_rig.get_children():
 		rig.hide()
-	for mesh in get_tree().get_nodes_in_group("body_weapon_mesh"):
-		if mesh.owner != self:
-			continue
-		mesh.hide()
+	
+	# Only access get_tree() if we're in the scene tree
+	if is_inside_tree():
+		for mesh in get_tree().get_nodes_in_group("body_weapon_mesh"):
+			if mesh.owner != self:
+				continue
+			mesh.hide()
 	
 	# Safety check - ensure the weapon rig exists
 	if not arms_rig.has_node(current_weapon.name):
@@ -494,14 +624,20 @@ func switch_weapon(update_only: bool = false) -> void:
 	
 	# Hide the rig and wait extra frames to ensure the reset is applied.
 	current_arm_rig.hide()
-	await get_tree().process_frame
-	await get_tree().process_frame
+	
+	# Only await process_frame if in the tree
+	if is_inside_tree():
+		await get_tree().process_frame
+		await get_tree().process_frame
 	
 	# Now show the new weapon's rig.
 	current_arm_rig.show()
-	for mesh in get_tree().get_nodes_in_group("body_weapon_mesh"):
-		if mesh.owner == self and mesh.name == current_weapon.name:
-			mesh.show()
+	
+	# Only access get_tree() if we're in the scene tree
+	if is_inside_tree():
+		for mesh in get_tree().get_nodes_in_group("body_weapon_mesh"):
+			if mesh.owner == self and mesh.name == current_weapon.name:
+				mesh.show()
 	
 	# Initialize weapon armature position for new weapon
 	if current_arm_rig.has_node("LVA4_Armature"):
@@ -1037,7 +1173,7 @@ func look_at_object(delta):
 
 	skeleton.set_bone_pose_rotation(neck_bone, new_rotation)
 
-@rpc("authority", "call_remote", "unreliable")
+@rpc("any_peer", "call_remote", "unreliable")
 func sync_health(value: int):
 	if not is_multiplayer_authority():
 		health = value
