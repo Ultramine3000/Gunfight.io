@@ -117,14 +117,6 @@ func _build_main_menu() -> void:
 	main_menu_container.add_theme_constant_override("separation", 20)
 	add_child(main_menu_container)
 	
-	# Title
-	var title = Label.new()
-	title.text = "warpigs.gg"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 48)
-	title.add_theme_color_override("font_color", Color(0.9, 0.7, 0.2))
-	main_menu_container.add_child(title)
-	
 	# Spacer
 	var spacer = Control.new()
 	spacer.custom_minimum_size = Vector2(0, 40)

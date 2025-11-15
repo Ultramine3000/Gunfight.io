@@ -250,16 +250,16 @@ text = "Look Sensitivity"
 [node name="scope" type="Sprite2D" parent="."]
 visible = false
 z_index = -2
-position = Vector2(799.167, 226.667)
-scale = Vector2(0.435357, 0.416281)
+position = Vector2(799.167, 225.72939)
+scale = Vector2(0.435357, 0.4180174)
 texture = ExtResource("9_khpnb")
 
 [node name="border" type="Sprite2D" parent="scope"]
-position = Vector2(1274.53, 4.57764e-05)
-scale = Vector2(17.7746, 16.8281)
+position = Vector2(1274.53, -0.7503833)
+scale = Vector2(17.7746, 16.851551)
 texture = SubResource("GradientTexture2D_f4txf")
 
 [node name="border2" type="Sprite2D" parent="scope"]
-position = Vector2(-1377.24, -4.50413)
-scale = Vector2(14.3852, 17.0314)
+position = Vector2(-1377.24, 0.2503481)
+scale = Vector2(14.3852, 16.882824)
 texture = SubResource("GradientTexture2D_f4txf")

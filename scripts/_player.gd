@@ -8,7 +8,7 @@ var hud: Control  # Will be set by _setup_hud()  # This will be replaced based o
 @onready var camera := $camera
 @onready var arms_rig := $camera/arms
 @onready var body_rig := $body/body_rig
-@onready var barrel := $camera/barrel
+var barrel: Node3D  # Will be set dynamically based on current weapon
 
 @onready var current_arm_rig
 @onready var body_anim_continue : AnimationPlayer = $body/body_rig/anim_continue
@@ -29,11 +29,6 @@ var is_aiming := false
 var default_fov : float
 var target_fov : float
 
-## RECOIL ##
-var recoil_strength := Vector2(0.35, 0.15)  # (Vertical, Horizontal) recoil amount
-var recoil_recovery_speed := 20.0         # Speed of recoil reset
-var recoil_offset := Vector2.ZERO         # Current recoil applied to the camera
-
 ## ARM BOBBING ##
 @export_category("Arms")
 var arm_bob_time := 0.0
@@ -52,6 +47,17 @@ var view_layer : int
 var look_input := Vector2.ZERO
 var target_look_input := Vector2.ZERO
 @export_range(0.0, 20.0) var look_smoothness := 10.0
+
+## SCOPE SWAY ##
+@export_category("Scope Sway")
+@export var scope_sway_enabled := true
+@export_range(0.0, 0.5) var scope_sway_amount := 0.08  # How much the camera sways with scope
+@export_range(0.0, 3.0) var scope_sway_speed := 1.2  # Speed of the sway
+
+var scope_sway_time := 0.0
+
+## SCOPE RECOIL ##
+@export_range(-10.0, 0.0) var scope_recoil_kick := -3.0  # How much the scope pops up
 
 ## MOVEMENT ##
 @export_category("Movement")
@@ -124,6 +130,13 @@ func _ready() -> void:
 		print("Local multiplayer ID: ", multiplayer.get_unique_id())
 		print("Is authority: ", is_multiplayer_authority())
 	
+	# CRITICAL: Duplicate weapons so each player has their own instance
+	# This prevents players from sharing the same weapon resource and ammo counts
+	if current_weapon:
+		current_weapon = current_weapon.duplicate(true)
+	if side_weapon:
+		side_weapon = side_weapon.duplicate(true)
+	
 	# Load appropriate HUD based on multiplayer mode
 	_setup_hud()
 	
@@ -175,7 +188,7 @@ func _ready() -> void:
 	if has_node("muzzle_flash"):
 		_set_body_vis_recursive(get_node("muzzle_flash"))
 	
-	# Set weapon.
+	# Set weapon ammo AFTER duplicating
 	if current_weapon:
 		ammo[current_weapon.name] = current_weapon.max_ammo * ammo_default_multiplier
 		current_weapon.current_ammo = current_weapon.max_ammo
@@ -207,6 +220,15 @@ func _ready() -> void:
 	else:
 		if is_multiplayer_authority():
 			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+
+func _update_barrel_reference():
+	# Find the barrel node in the current weapon's armature
+	if current_arm_rig and current_arm_rig.has_node("LVA4_Armature/barrel"):
+		barrel = current_arm_rig.get_node("LVA4_Armature/barrel")
+		print("Barrel reference updated to: ", barrel.get_path())
+	else:
+		print("Warning: Could not find barrel node in current weapon armature!")
+		barrel = null
 
 func _setup_hud():
 	# Remove existing HUD if it exists
@@ -363,6 +385,18 @@ func stop_ads():
 	if current_arm_rig and current_arm_rig.has_node("LVA4_Armature"):
 		current_arm_rig.get_node("LVA4_Armature").set_p0_ads(false)
 
+func _is_scope_visible() -> bool:
+	# Check if we have a HUD and scope node
+	if hud and hud.has_node("scope"):
+		var scope = hud.get_node("scope")
+		return scope.visible
+	return false
+
+func _apply_scope_recoil():
+	if _is_scope_visible():
+		# Just kick the camera up - no recovery needed
+		camera.rotate_x(deg_to_rad(-scope_recoil_kick))
+
 func _camera_process(delta):
 	if health <= 0:
 		return
@@ -401,13 +435,21 @@ func _camera_process(delta):
 	# Smooth the input to prevent clunky jumpiness
 	look_input = lerp(look_input, target_look_input, clamp(look_smoothness * delta, 0.0, 1.0))
 
-	# Apply rotation + recoil
-	rotate_y(deg_to_rad(look_input.x + recoil_offset.x))
-	camera.rotate_x(deg_to_rad(look_input.y + recoil_offset.y))
+	# Apply rotation
+	rotate_y(deg_to_rad(look_input.x))
+	camera.rotate_x(deg_to_rad(look_input.y))
 
-	# Recoil reset
-	if current_weapon:
-		recoil_offset = lerp(recoil_offset, Vector2.ZERO, delta * current_weapon.recoil_recovery_speed)
+	# Apply scope sway if scope is visible
+	if scope_sway_enabled and _is_scope_visible():
+		scope_sway_time += delta * scope_sway_speed
+		
+		# Create gentle figure-8 sway pattern
+		var sway_x = sin(scope_sway_time) * scope_sway_amount
+		var sway_y = sin(scope_sway_time * 0.7) * scope_sway_amount * 0.6
+		
+		# Apply sway to camera rotation
+		camera.rotation.x += deg_to_rad(sway_y)
+		camera.rotation.y += deg_to_rad(sway_x)
 
 	# Clamp vertical look
 	camera.rotation.x = clamp(camera.rotation.x, deg_to_rad(-40), deg_to_rad(60))
@@ -614,6 +656,9 @@ func switch_weapon(update_only: bool = false) -> void:
 	# Set the new weapon's animation rig.
 	current_arm_rig = arms_rig.get_node(current_weapon.name)
 	
+	# Update barrel reference for the new weapon
+	_update_barrel_reference()
+	
 	# Fully reset the new rig's animations.
 	var continue_anim: AnimationPlayer = current_arm_rig.get_node("anim_continue")
 	var oneshot_anim: AnimationPlayer = current_arm_rig.get_node("anim_oneshot")
@@ -779,6 +824,11 @@ func shoot():
 	if current_weapon.current_ammo <= 0:
 		reload()
 		return
+	
+	# Safety check: ensure barrel exists
+	if not barrel:
+		print("Error: Barrel node not found! Cannot shoot.")
+		return
 
 	# Play weapon fire sound
 	if shoot_sound and shoot_sound.stream:
@@ -802,10 +852,12 @@ func shoot():
 	
 	activate_muzzle_flash()
 
-	# **Apply recoil - reduce recoil while aiming**
-	var recoil_multiplier = 0.5 if is_aiming else 1.0
-	recoil_offset.y += current_weapon.recoil_strength.x * recoil_multiplier
-	recoil_offset.x += randf_range(-current_weapon.recoil_strength.y, current_weapon.recoil_strength.y) * recoil_multiplier
+	# Apply weapon recoil animation
+	if current_arm_rig and current_arm_rig.has_node("LVA4_Armature"):
+		current_arm_rig.get_node("LVA4_Armature").apply_recoil()
+	
+	# Apply scope recoil if scope is visible
+	_apply_scope_recoil()
 
 	# **Reduce ammo and set cooldown**
 	shoot_cooldown = current_weapon.cooldown
@@ -830,6 +882,11 @@ func play_oneshot_anim_arms_force(anim_name: String, custom_blend: float = -1.0,
 func move_tracer(hit_position: Vector3):
 	if tracer_scene == null:
 		print("Error: Tracer scene not assigned!")
+		return
+	
+	# Safety check: ensure barrel exists
+	if not barrel:
+		print("Error: Barrel node not found! Cannot create tracer.")
 		return
 
 	# Instantiate a new tracer for each shot
@@ -877,8 +934,9 @@ func take_damage(damage: int, type: String, enemy_source_path: NodePath, hit_pos
 			return
 	health -= damage
 	hud.hp_target = health
-	hud.flash_damage_indicator()
+	hud.flash_damage_indicator()  # Just triggers the flash, persistent vignette handles itself
 	sync_health.rpc(health)
+	
 	# Play damage sound with modulation
 	if has_node("take_damage_sound"):
 		var sound = $take_damage_sound.duplicate()
@@ -887,6 +945,7 @@ func take_damage(damage: int, type: String, enemy_source_path: NodePath, hit_pos
 		sound.play()
 		sound.finished.connect(sound.queue_free)
 	_camera_flinch()
+	
 	# Spawn scene at precise hit location facing toward enemy_source
 	var hit_indicator_scene = preload("res://assets/pfx/bloodspatter/blood_spatter.tscn")
 	var hit_indicator = hit_indicator_scene.instantiate()
@@ -982,6 +1041,21 @@ func die(_func_stage := 0, enemy_source_path := ""):
 			collision_mask = 2 | 3
 			enemy_that_killed = null
 			
+			# RESET AMMO ON RESPAWN
+			if current_weapon:
+				current_weapon.current_ammo = current_weapon.max_ammo
+				ammo[current_weapon.name] = current_weapon.max_ammo * ammo_default_multiplier
+			if side_weapon:
+				side_weapon.current_ammo = side_weapon.max_ammo
+				ammo[side_weapon.name] = side_weapon.max_ammo * ammo_default_multiplier
+			
+			# Reset cooldowns and states
+			shoot_cooldown = 0.0
+			reload_time_remaining = 0.0
+			reloading = false
+			inspecting = false
+			weapon_switching = false
+			
 			Game.world.respawn(self)
 			
 			# Wait one frame to ensure position is set
@@ -989,6 +1063,11 @@ func die(_func_stage := 0, enemy_source_path := ""):
 			
 			# THEN set dead to false so animations can resume
 			dead = false
+			
+			# Update HUD with fresh ammo counts
+			if hud:
+				hud.update_ammo()
+				hud.update_score()
 
 func _on_death_anim_done(anim:StringName, _func_stage):
 	if not "Death" in anim: return
@@ -1060,8 +1139,14 @@ func _set_muzzle_flash_vis_recursive(parent):
 		_set_muzzle_flash_vis_recursive(child)
 
 func activate_muzzle_flash():
-	# Activate muzzle flash on the weapon (now under LVA4_Armature)
-	if current_arm_rig.has_node("LVA4_Armature/muzzle_flash"):
+	# Check if we're using a scoped weapon in ADS mode
+	var is_scoped_ads = false
+	if current_arm_rig.has_node("LVA4_Armature"):
+		var armature = current_arm_rig.get_node("LVA4_Armature")
+		is_scoped_ads = armature.is_sniper and armature.is_ads
+	
+	# Only activate muzzle flash on the weapon if NOT in scoped ADS mode
+	if not is_scoped_ads and current_arm_rig.has_node("LVA4_Armature/muzzle_flash"):
 		var flash = current_arm_rig.get_node("LVA4_Armature/muzzle_flash")
 		
 		# Restart all particle emitters under muzzle_flash
@@ -1076,7 +1161,7 @@ func activate_muzzle_flash():
 			var light = flash.get_node("omni_light")
 			light.visible = true
 
-	# Activate muzzle flash on the player rig using the exported node
+	# Always activate muzzle flash on the player rig (third-person view)
 	if has_node(player_muzzle_flash):
 		var player_flash = get_node(player_muzzle_flash)
 		
@@ -1094,8 +1179,8 @@ func activate_muzzle_flash():
 
 	await get_tree().create_timer(0.1).timeout
 
-	# Deactivate omni light on the weapon
-	if current_arm_rig.has_node("LVA4_Armature/muzzle_flash"):
+	# Deactivate omni light on the weapon (only if we activated it)
+	if not is_scoped_ads and current_arm_rig.has_node("LVA4_Armature/muzzle_flash"):
 		var flash = current_arm_rig.get_node("LVA4_Armature/muzzle_flash")
 		if flash.has_node("omni_light"):
 			flash.get_node("omni_light").visible = false

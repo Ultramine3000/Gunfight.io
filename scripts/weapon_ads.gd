@@ -13,6 +13,16 @@ extends Node3D
 @export var is_sniper: bool = false  # Check this box for sniper weapons
 @export var scope_transition_delay := 0.15  # Delay before showing scope (to sync with weapon movement)
 
+
+## RECOIL SETTINGS ##
+@export_category("Recoil Settings")
+@export var recoil_enabled := true  # Master toggle for all recoil
+@export_range(-1.0, 1.0) var recoil_kick_amount := 0.027  # How far the weapon kicks back (Z-axis)
+@export_range(0.0, 5.0) var recoil_rotation_pitch := 0.8  # Upward rotation per shot (degrees)
+@export_range(0.0, 2.0) var recoil_horizontal_intensity := 0.4  # Horizontal drift intensity (left/right spray)
+@export_range(0.0, 20.0) var recoil_recovery_speed := 1.4  # How fast weapon returns to normal
+@export_range(0.0, 1.0) var recoil_ads_multiplier := 0.5  # Recoil reduction when ADS (50% reduction)
+
 ## FIGURE-8 ROTATION SETTINGS ##
 @export_category("Figure-8 Settings")
 @export_range(0.0, 2.0) var rotation_speed := 0.65  # Speed of the figure-8 motion
@@ -50,6 +60,12 @@ var current_sprint_intensity := 0.0
 var target_sprint_intensity := 0.0
 var current_sprint_position_offset := Vector3.ZERO
 var current_sprint_rotation_offset := Vector3.ZERO
+
+# Recoil variables
+var current_recoil_position := Vector3.ZERO
+var target_recoil_position := Vector3.ZERO
+var current_recoil_rotation := Vector3.ZERO
+var target_recoil_rotation := Vector3.ZERO
 
 # Scope variables
 var scope_node: Node = null
@@ -116,6 +132,9 @@ func _process(delta: float):
 	# Update input response
 	_update_input_response(delta)
 	
+	# Update recoil recovery
+	_update_recoil_recovery(delta)
+	
 	# Create base figure-8 pattern (reduced when sprinting)
 	var figure8_intensity = 1.0 - (current_sprint_intensity * 0.8)  # Reduce figure-8 when sprinting
 	var horizontal_sway = sin(time_elapsed) * horizontal_amplitude * figure8_intensity
@@ -132,8 +151,48 @@ func _process(delta: float):
 	# Apply the subtle rotations plus input response plus sprint animation to the starting rotation
 	rotation_degrees = starting_rotation + figure8_rotation + current_input_offset + current_sprint_rotation_offset
 	
-	# Update position with sprint offset
-	_update_position_with_sprint()
+	# ADDITIONALLY apply recoil rotation on top of everything else
+	rotation_degrees.x += current_recoil_rotation.x  # Vertical recoil
+	rotation_degrees.y += current_recoil_rotation.y  # Horizontal recoil
+	
+	# Update position with sprint and recoil
+	_update_position_with_sprint_and_recoil()
+
+func _update_recoil_recovery(delta: float):
+	# Smoothly recover recoil back to zero
+	current_recoil_position = current_recoil_position.lerp(Vector3.ZERO, recoil_recovery_speed * delta)
+	current_recoil_rotation = current_recoil_rotation.lerp(Vector3.ZERO, recoil_recovery_speed * delta)
+	
+	# Once close enough, snap to zero to prevent floating point drift
+	if current_recoil_position.length() < 0.0001:
+		current_recoil_position = Vector3.ZERO
+	if current_recoil_rotation.length() < 0.01:
+		current_recoil_rotation = Vector3.ZERO
+
+func apply_recoil():
+	# Check if recoil is enabled
+	if not recoil_enabled:
+		return
+	
+	# Calculate recoil multiplier based on ADS state
+	var multiplier = recoil_ads_multiplier if is_ads else 1.0
+	
+	# ADD recoil incrementally (accumulates with each shot)
+	current_recoil_position += Vector3(
+		0.0,  # X: No horizontal position kick
+		0.0,  # Y: No vertical position movement
+		recoil_kick_amount * multiplier  # Z: Kick back
+	)
+	
+	# ADD rotation recoil incrementally (accumulates with each shot)
+	var pitch_variation = randf_range(0.9, 1.1)  # +/- 10% variation on vertical
+	var yaw_variation = randf_range(-recoil_horizontal_intensity, recoil_horizontal_intensity)  # Use slider value
+	
+	current_recoil_rotation += Vector3(
+		recoil_rotation_pitch * multiplier * pitch_variation,  # X: Incrementally pitch up
+		yaw_variation * multiplier,  # Y: Random horizontal rotation (left/right)
+		0.0  # Z: No roll
+	)
 
 func _update_sprint_state(delta: float):
 	# Check if player is sprinting
@@ -149,7 +208,7 @@ func _update_sprint_state(delta: float):
 	current_sprint_position_offset = sprint_position * current_sprint_intensity
 	current_sprint_rotation_offset = sprint_rotation * current_sprint_intensity
 
-func _update_position_with_sprint():
+func _update_position_with_sprint_and_recoil():
 	var target_pos: Vector3
 	
 	# Determine base position based on ADS state
@@ -160,6 +219,9 @@ func _update_position_with_sprint():
 	
 	# Add sprint position offset
 	target_pos += current_sprint_position_offset
+	
+	# Add recoil position offset
+	target_pos += current_recoil_position
 	
 	# Apply position with smooth transition
 	if use_animation and not is_equal_approx(transform.origin.distance_to(target_pos), 0.0):
@@ -321,7 +383,7 @@ func set_p1_ads(value: bool):
 	pass
 
 func update_position():
-	# Position update is now handled in _update_position_with_sprint()
+	# Position update is now handled in _update_position_with_sprint_and_recoil()
 	pass
 
 func animate_to_position(pos: Vector3):
@@ -345,5 +407,9 @@ func reset_to_starting():
 	current_sprint_intensity = 0.0
 	current_sprint_position_offset = Vector3.ZERO
 	current_sprint_rotation_offset = Vector3.ZERO
+	current_recoil_position = Vector3.ZERO
+	target_recoil_position = Vector3.ZERO
+	current_recoil_rotation = Vector3.ZERO
+	target_recoil_rotation = Vector3.ZERO
 	# Make sure scope is hidden when resetting
 	_hide_scope()

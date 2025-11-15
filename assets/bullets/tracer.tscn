@@ -26,7 +26,7 @@ section_segments = 1
 [node name="tracer" type="Node3D"]
 
 [node name="tracer" type="MeshInstance3D" parent="."]
-transform = Transform3D(-2.08998, -0.00915574, 0, -4.00211e-10, 9.13558e-08, -2.09, 0.00915574, -2.08998, -9.13568e-08, 0.0417835, -0.190866, -1.0434539)
+transform = Transform3D(-5.9999423, -0.02628504, 1.1489556e-09, 0, -2.6226832e-07, -6, 0.02628504, -5.9999423, 2.6226581e-07, 0.0417835, 0.0014585853, -2.684389)
 mesh = SubResource("RibbonTrailMesh_tb5kq")
 
 [node name="RayCast3D" type="RayCast3D" parent="tracer"]

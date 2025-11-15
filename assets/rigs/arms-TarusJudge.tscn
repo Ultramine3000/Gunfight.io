@@ -10993,6 +10993,9 @@ blend_shapes/Rolled = 0.0
 mesh = SubResource("ArrayMesh_laq0r")
 skin = SubResource("Skin_qvhb5")
 
+[node name="barrel" type="Marker3D" parent="LVA4_Armature"]
+transform = Transform3D(0.9999428, 0, 0.010698698, 0, 1, 0, -0.010698698, 0, 0.9999428, 0.07831351, 0.025337107, -0.46322522)
+
 [node name="anim_continue" type="AnimationPlayer" parent="."]
 libraries = {
 &"": SubResource("AnimationLibrary_heb7v")

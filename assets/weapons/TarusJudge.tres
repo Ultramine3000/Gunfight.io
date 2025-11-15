@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="Weapon" load_steps=8 format=3 uid="uid://b1un2a15q5vl7"]
 
 [ext_resource type="Texture2D" uid="uid://cfxfimly35oou" path="res://assets/textures/bullet_icons/tarusjudge_bullet.png" id="1_6nwrn"]
-[ext_resource type="PackedScene" uid="uid://0hfsyvu2gt01" path="res://assets/bullets/bullet_ray_large.tscn" id="1_6pb4s"]
+[ext_resource type="PackedScene" uid="uid://0hfsyvu2gt01" path="res://assets/bullets/bullet_ray_7_92x57mm.tscn" id="1_6pb4s"]
 [ext_resource type="Script" uid="uid://cwceyqimjut8o" path="res://scripts/class-weapon.gd" id="1_hodff"]
 [ext_resource type="AudioStream" uid="uid://cq81s5duedw2p" path="res://assets/sfx/weapons/tarusjudge/revolver_draw.wav" id="3_5mqkx"]
 [ext_resource type="AudioStream" uid="uid://xyanq67n6fed" path="res://assets/sfx/weapons/tarusjudge/revolver_shot.wav" id="3_vbspc"]

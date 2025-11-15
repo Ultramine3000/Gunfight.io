@@ -13,10 +13,6 @@ enum WEAPON_TYPES {PISTOL, RIFLE}
 @export_range(1, 1000) var max_ammo := 10
 var current_ammo := 0
 
-@export_category("Recoil")  # NEW SECTION FOR RECOIL SETTINGS
-@export var recoil_strength : Vector2 = Vector2(0.35, 0.15)  # (Vertical, Horizontal)
-@export var recoil_recovery_speed := 10.0  # How fast recoil resets
-
 @export_category("Weapon Sounds")  # Sounds
 @export var fire_sound: AudioStream  
 @export var reload_sound: AudioStream  
